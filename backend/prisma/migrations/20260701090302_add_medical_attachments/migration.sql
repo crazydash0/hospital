@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "AttachmentType" AS ENUM ('PRESCRIPTION', 'LAB_RESULT', 'XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'REPORT', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "UploadedBy" AS ENUM ('DOCTOR', 'PATIENT');

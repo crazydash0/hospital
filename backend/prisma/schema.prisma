@@ -1,0 +1,253 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       Int    @id @default(autoincrement())
+  email    String @unique
+  password String
+  role     Role   @default(PATIENT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctor  Doctor?
+  patient Patient?
+
+  attachments MedicalAttachment[]
+}
+
+model Doctor {
+  id             Int                     @id @default(autoincrement())
+  userId         Int                     @unique
+  fullName       String
+  specialty      String
+  price          Float
+  bio            String?
+  appointments   Appointment[]
+  slots          AppointmentSlot[]
+  user           User                    @relation(fields: [userId], references: [id])
+  medicalRecords MedicalRecord[]
+  templates      MedicalRecordTemplate[]
+  reviews        Review[]
+}
+
+model Patient {
+  id             Int             @id @default(autoincrement())
+  userId         Int             @unique
+  address        String?
+  birthDate      DateTime?
+  fullName       String
+  gender         Gender?
+  phone          String?
+  appointments   Appointment[]
+  medicalRecords MedicalRecord[]
+  user           User            @relation(fields: [userId], references: [id])
+  reviews        Review[]
+}
+
+model Appointment {
+  id            Int                 @id @default(autoincrement())
+  doctorId      Int
+  patientId     Int
+  date          DateTime
+  createdAt     DateTime            @default(now())
+  status        AppointmentStatus   @default(PENDING)
+  slotId        Int                 @unique
+  doctor        Doctor              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient       Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  slot          AppointmentSlot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  attachments   MedicalAttachment[]
+  medicalRecord MedicalRecord?
+  review        Review?
+
+  @@index([doctorId])
+  @@index([patientId])
+}
+
+model AppointmentSlot {
+  id          Int          @id @default(autoincrement())
+  doctorId    Int
+  startTime   DateTime
+  endTime     DateTime
+  isBooked    Boolean      @default(false)
+  appointment Appointment?
+  doctor      Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+}
+
+model MedicalRecord {
+  id                     Int      @id @default(autoincrement())
+  patientId              Int
+  doctorId               Int
+  appointmentId          Int      @unique
+  diagnosis              String
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  additionalInstructions String?
+
+  attachments   MedicalAttachment[]
+  prescriptions Prescription[]
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  doctor      Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient     Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([doctorId])
+}
+
+model Prescription {
+  id              Int           @id @default(autoincrement())
+  medicalRecordId Int
+  medicineName    String
+  dosage          String
+  frequency       String
+  duration        String
+  instructions    String?
+  createdAt       DateTime      @default(now())
+  medicalRecord   MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
+
+  @@index([medicalRecordId])
+}
+
+model MedicalRecordTemplate {
+  id          Int                         @id @default(autoincrement())
+  name        String
+  description String?
+  specialty   String?
+  visibility  TemplateVisibility          @default(PRIVATE)
+  isSystem    Boolean                     @default(false)
+  doctorId    Int?
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+  doctor      Doctor?                     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  items       MedicalRecordTemplateItem[]
+
+  @@index([doctorId])
+  @@index([visibility])
+  @@index([specialty])
+}
+
+model MedicalRecordTemplateItem {
+  id           Int                   @id @default(autoincrement())
+  templateId   Int
+  label        String
+  key          String
+  type         FieldType
+  required     Boolean               @default(false)
+  unit         String?
+  placeholder  String?
+  options      Json?
+  displayOrder Int
+  template     MedicalRecordTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+}
+
+model Review {
+  id            Int         @id @default(autoincrement())
+  appointmentId Int         @unique
+  doctorId      Int
+  patientId     Int
+  rating        Int
+  comment       String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  doctorReply   String?
+  isAnonymous   Boolean     @default(false)
+  isHidden      Boolean     @default(false)
+  repliedAt     DateTime?
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  doctor        Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient       Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId])
+  @@index([patientId])
+}
+
+model MedicalAttachment {
+  id Int @id @default(autoincrement())
+
+  appointmentId   Int
+  medicalRecordId Int?
+  uploadedById    Int
+
+  type       AttachmentType
+  uploadedBy UploadedBy
+
+  fileName String
+  publicId String
+  fileUrl  String
+  mimeType String
+  size     Int
+  notes    String?
+
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  appointment   Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  medicalRecord MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
+  uploader      User           @relation(fields: [uploadedById], references: [id])
+
+  @@index([appointmentId])
+  @@index([medicalRecordId])
+  @@index([uploadedById])
+  @@index([isDeleted])
+}
+
+enum Role {
+  DOCTOR
+  PATIENT
+  ADMIN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum TemplateVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum FieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  DATE
+  CHECKBOX
+  SELECT
+  VITAL
+}
+
+enum AttachmentType {
+  PRESCRIPTION
+  LAB_RESULT
+  XRAY
+  MRI
+  CT_SCAN
+  ULTRASOUND
+  REPORT
+  OTHER
+}
+
+enum UploadedBy {
+  DOCTOR
+  PATIENT
+}
