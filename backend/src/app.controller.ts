@@ -1,14 +1,14 @@
-import { Controller, Get, UseGuards, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { Controller, Get } from '@nestjs/common';
+import { Public } from './auth/public.decorator';
+import { AppService } from './app.service';
 
-@ApiTags('Users')
-@ApiBearerAuth()
-@Controller('users')
-export class UsersController {
-  @UseGuards(JwtAuthGuard)
-  @Get('profile')
-  getProfile(@Req() req) {
-    return req.user;
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService) {}
+
+  @Public()
+  @Get()
+  getHello(): string {
+    return this.appService.getHello();
   }
 }

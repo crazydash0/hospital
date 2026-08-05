@@ -7,7 +7,8 @@ import { DoctorsModule } from './doctors/doctors.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { AdminModule } from './admin/admin.module';
 import { DashboardModule } from './dashboard/dashboard.module';
-
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { GlobalAuthGuard } from './auth/global-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 import { MedicalRecordsModule } from './medical-records/medical-records.module';
@@ -38,17 +39,18 @@ import { AccessControlModule } from './common/profanity/access-control/access-co
     MedicalAttachmentsModule,
     AccessControlModule,
   ],
-  controllers: [],
-  providers: [
-    {
-      provide: APP_GUARD,
-      useClass: GlobalAuthGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
-    },
-    ProfanityService,
-  ],
+controllers: [AppController],
+providers: [
+  {
+    provide: APP_GUARD,
+    useClass: GlobalAuthGuard,
+  },
+  {
+    provide: APP_GUARD,
+    useClass: RolesGuard,
+  },
+  ProfanityService,
+  AppService,
+],
 })
 export class AppModule {}
