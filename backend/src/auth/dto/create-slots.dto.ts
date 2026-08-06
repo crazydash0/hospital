@@ -1,9 +1,9 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsDateString, IsInt, Max, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsDateString, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class CreateSlotsDto {
   @ApiProperty({
-    example: '2026-07-01',
+    example: '2026-08-20',
     description: 'Date for slots',
   })
   @IsDateString()
@@ -26,4 +26,14 @@ export class CreateSlotsDto {
   @Min(1)
   @Max(23)
   endHour!: number;
+
+  @ApiPropertyOptional({
+    example: 30,
+    description: 'Appointment duration in minutes (default 30)',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @Max(240)
+  duration?: number;
 }

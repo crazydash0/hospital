@@ -5,6 +5,9 @@ import Navbar from "./components/navbar";
 import Register from "./pages/Register";
 import ProtectedRoute from "./components/ProtectedRoute";
 import BookAppointment from "./pages/BookAppointment";
+import CreateSlots from "./pages/CreateSlots";
+import WeeklySchedule from "./pages/WeeklySchedule";
+
 function App(){
   return(
   <BrowserRouter>
@@ -14,6 +17,8 @@ function App(){
       <Route path="/" element={<ProtectedRoute><Home/> </ProtectedRoute>} />
       <Route path = "/register" element = {<Register/>}/>
       <Route path="/login" element={<Login/>} />
+      <Route path="/create-slots"element={<ProtectedRoute allowedRoles={["DOCTOR"]}><CreateSlots /></ProtectedRoute>}/>
+      <Route path="/weekly-schedule"element={<ProtectedRoute allowedRoles={["DOCTOR"]}><WeeklySchedule /></ProtectedRoute>}/>
     </Routes>
   </BrowserRouter>
 );

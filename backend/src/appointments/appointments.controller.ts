@@ -6,6 +6,8 @@ import { Role } from '@prisma/client';
 import { BookAppointmentDto } from '../auth/dto/book-appointment.dto';
 import { CreateSlotsDto } from '../auth/dto/create-slots.dto';
 import { ParseIntPipe } from '@nestjs/common';
+import { SetWeeklyTemplateDto } from '../auth/dto/weekly-template.dto';
+import { CreateLeaveDto } from '../auth/dto/doctor-leave.dto';
 
 @ApiTags('Appointments')
 @ApiBearerAuth()
@@ -58,14 +60,44 @@ export class AppointmentsController {
     return this.service.getAvailableSlots(doctorId);
   }
 
-  @Roles(Role.DOCTOR)
-  @Post('slots')
-  createSlots(@Req() req, @Body() body: CreateSlotsDto) {
-    return this.service.createSlots(
+ @Roles(Role.DOCTOR)
+@Post('slots')
+createSlots(@Req() req, @Body() body: CreateSlotsDto) {
+  return this.service.createSlots(
+    req.user.userId,
+    body.date,
+    body.startHour,
+    body.endHour,
+    body.duration,
+  );
+}
+@Roles(Role.DOCTOR)
+  @Post('weekly-template')
+  setWeeklyTemplate(@Req() req, @Body() body: SetWeeklyTemplateDto) {
+    return this.service.setWeeklyTemplate(
       req.user.userId,
-      body.date,
+      body.dayOfWeek,
       body.startHour,
       body.endHour,
+      body.duration,
     );
+  }
+
+  @Roles(Role.DOCTOR)
+  @Get('weekly-template')
+  getWeeklyTemplate(@Req() req) {
+    return this.service.getWeeklyTemplate(req.user.userId);
+  }
+
+  @Roles(Role.DOCTOR)
+  @Post('leaves')
+  addLeave(@Req() req, @Body() body: CreateLeaveDto) {
+    return this.service.addLeave(req.user.userId, body.date);
+  }
+
+  @Roles(Role.DOCTOR)
+  @Post('generate-week')
+  generateWeek(@Req() req) {
+    return this.service.generateWeek(req.user.userId);
   }
 }

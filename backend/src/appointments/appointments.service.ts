@@ -201,11 +201,39 @@ export class AppointmentsService {
       },
     });
   }
+ private buildSlotsForDay(
+    doctorId: number,
+    date: Date,
+    startHour: number,
+    endHour: number,
+    duration: number,
+  ) {
+    const start = new Date(date);
+    start.setHours(startHour, 0, 0, 0);
+
+    const end = new Date(date);
+    end.setHours(endHour, 0, 0, 0);
+
+    const slots: { doctorId: number; startTime: Date; endTime: Date }[] = [];
+
+    while (start < end) {
+      const slotStart = new Date(start);
+      const slotEnd = new Date(start);
+      slotEnd.setMinutes(slotEnd.getMinutes() + duration);
+
+      slots.push({ doctorId, startTime: slotStart, endTime: slotEnd });
+      start.setMinutes(start.getMinutes() + duration);
+    }
+
+    return slots;
+  }
+
   async createSlots(
     doctorUserId: number,
     date: string,
     startHour: number,
     endHour: number,
+    duration: number = 30,
   ) {
     const doctor = await this.prisma.doctor.findUnique({
       where: { userId: doctorUserId },
@@ -216,50 +244,154 @@ export class AppointmentsService {
     }
 
     const day = new Date(date);
-
     const start = new Date(day);
     start.setHours(startHour, 0, 0, 0);
-
     const end = new Date(day);
     end.setHours(endHour, 0, 0, 0);
 
-    // منع إنشاء Slots لنفس اليوم مرتين
     const existingSlots = await this.prisma.appointmentSlot.count({
       where: {
         doctorId: doctor.id,
-        startTime: {
-          gte: start,
-          lt: end,
-        },
+        startTime: { gte: start, lt: end },
       },
     });
 
     if (existingSlots > 0) {
       throw new BadRequestException('Slots already exist for this date');
     }
-    const slots: {
-      doctorId: number;
-      startTime: Date;
-      endTime: Date;
-    }[] = [];
 
-    while (start < end) {
-      const slotStart = new Date(start);
+    const slots = this.buildSlotsForDay(doctor.id, day, startHour, endHour, duration);
 
-      const slotEnd = new Date(start);
-      slotEnd.setMinutes(slotEnd.getMinutes() + 30);
+    return this.prisma.appointmentSlot.createMany({ data: slots });
+  }
+  // إنشاء أو تعديل يوم في الجدول الأسبوعي
+  async setWeeklyTemplate(
+    doctorUserId: number,
+    dayOfWeek: number,
+    startHour: number,
+    endHour: number,
+    duration: number,
+  ) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { userId: doctorUserId },
+    });
 
-      slots.push({
-        doctorId: doctor.id,
-        startTime: slotStart,
-        endTime: slotEnd,
-      });
-
-      start.setMinutes(start.getMinutes() + 30);
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
     }
 
-    return this.prisma.appointmentSlot.createMany({
-      data: slots,
+    return this.prisma.weeklyScheduleTemplate.upsert({
+      where: {
+        doctorId_dayOfWeek: { doctorId: doctor.id, dayOfWeek },
+      },
+      update: { startHour, endHour, duration },
+      create: { doctorId: doctor.id, dayOfWeek, startHour, endHour, duration },
     });
+  }
+
+  // عرض الجدول الأسبوعي الحالي
+  async getWeeklyTemplate(doctorUserId: number) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { userId: doctorUserId },
+    });
+
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
+    }
+
+    return this.prisma.weeklyScheduleTemplate.findMany({
+      where: { doctorId: doctor.id },
+      orderBy: { dayOfWeek: 'asc' },
+    });
+  }
+
+  // تسجيل يوم إجازة
+  async addLeave(doctorUserId: number, date: string) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { userId: doctorUserId },
+    });
+
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
+    }
+
+    try {
+      return await this.prisma.doctorLeave.create({
+        data: { doctorId: doctor.id, date: new Date(date) },
+      });
+    } catch (error) {
+      throw new BadRequestException('Leave already registered for this date');
+    }
+  }
+
+  // توليد مواعيد الأسبوع الجاي حسب الجدول الأسبوعي، مع تخطي الإجازات
+  async generateWeek(doctorUserId: number) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { userId: doctorUserId },
+    });
+
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
+    }
+
+    const templates = await this.prisma.weeklyScheduleTemplate.findMany({
+      where: { doctorId: doctor.id },
+    });
+
+    const leaves = await this.prisma.doctorLeave.findMany({
+      where: { doctorId: doctor.id },
+    });
+
+    const leaveDates = new Set(
+      leaves.map((leave) => leave.date.toISOString().split('T')[0]),
+    );
+
+    let totalCreated = 0;
+    const skippedDays: string[] = [];
+
+    for (let i = 1; i <= 7; i++) {
+      const day = new Date();
+      day.setDate(day.getDate() + i);
+      day.setHours(0, 0, 0, 0);
+
+      const dayOfWeek = day.getDay();
+      const dateKey = day.toISOString().split('T')[0];
+
+      const template = templates.find((t) => t.dayOfWeek === dayOfWeek);
+
+      if (!template) continue;
+
+      if (leaveDates.has(dateKey)) {
+        skippedDays.push(dateKey);
+        continue;
+      }
+
+      const dayStart = new Date(day);
+      dayStart.setHours(template.startHour, 0, 0, 0);
+      const dayEnd = new Date(day);
+      dayEnd.setHours(template.endHour, 0, 0, 0);
+
+      const existing = await this.prisma.appointmentSlot.count({
+        where: {
+          doctorId: doctor.id,
+          startTime: { gte: dayStart, lt: dayEnd },
+        },
+      });
+
+      if (existing > 0) continue;
+
+      const slots = this.buildSlotsForDay(
+        doctor.id,
+        day,
+        template.startHour,
+        template.endHour,
+        template.duration,
+      );
+
+      const result = await this.prisma.appointmentSlot.createMany({ data: slots });
+      totalCreated += result.count;
+    }
+
+    return { totalCreated, skippedDays };
   }
 }

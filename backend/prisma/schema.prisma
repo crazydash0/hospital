@@ -35,6 +35,9 @@ model Doctor {
   medicalRecords MedicalRecord[]
   templates      MedicalRecordTemplate[]
   reviews        Review[]
+
+  weeklyTemplates WeeklyScheduleTemplate[]
+  leaves          DoctorLeave[]
 }
 
 model Patient {
@@ -201,6 +204,28 @@ model MedicalAttachment {
   @@index([medicalRecordId])
   @@index([uploadedById])
   @@index([isDeleted])
+}
+model WeeklyScheduleTemplate {
+  id        Int    @id @default(autoincrement())
+  doctorId  Int
+  dayOfWeek Int    // 0 = الأحد, 1 = الاتنين ... 6 = السبت
+  startHour Int
+  endHour   Int
+  duration  Int    @default(30)
+
+  doctor    Doctor @relation(fields: [doctorId], references: [id])
+
+  @@unique([doctorId, dayOfWeek])
+}
+
+model DoctorLeave {
+  id       Int      @id @default(autoincrement())
+  doctorId Int
+  date     DateTime
+
+  doctor   Doctor   @relation(fields: [doctorId], references: [id])
+
+  @@unique([doctorId, date])
 }
 
 enum Role {

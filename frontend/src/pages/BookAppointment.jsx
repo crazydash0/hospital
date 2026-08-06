@@ -46,7 +46,7 @@ function BookAppointment() {
       <h2>Available Slots</h2>
       {slots.map((slot) => (
         <div key={slot.id}>
-          <p>{slot.date} - {slot.startHour}:00</p>
+           <p>{new Date(slot.startTime).toLocaleString()}</p>
         </div>
       ))}
     </div>
