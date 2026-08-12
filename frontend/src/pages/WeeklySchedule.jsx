@@ -76,6 +76,12 @@ function WeeklySchedule() {
       setMessage(error.response?.data?.message || "Something went wrong");
     }
   }
+  function handleSelectDay(day) {
+  setDayOfWeek(String(day.dayOfWeek));
+  setStartHour(String(day.startHour));
+  setEndHour(String(day.endHour));
+  setDuration(String(day.duration));
+}
 
   return (
     <div>
@@ -83,16 +89,18 @@ function WeeklySchedule() {
 
       <h2>Current Schedule</h2>
       {template.length === 0 ? (
-        <p>No days set yet.</p>
-      ) : (
-        template.map((day) => (
-          <p key={day.id}>
-            {DAYS[day.dayOfWeek]}: {day.startHour}:00 - {day.endHour}:00 ({day.duration} min)
-          </p>
-        ))
-      )}
-
-      <h2>Set/Update a Day</h2>
+  <p>No days set yet.</p>
+) : (
+  template.map((day) => (
+    <div key={day.id}>
+      <span>
+        {DAYS[day.dayOfWeek]}: {day.startHour}:00 - {day.endHour}:00 ({day.duration} min)
+      </span>
+      <button onClick={() => handleSelectDay(day)}>Select</button>
+    </div>
+  ))
+)}
+<h2>Set/Update a Day</h2>
       <form onSubmit={handleSaveDay}>
         <select value={dayOfWeek} onChange={(e) => setDayOfWeek(e.target.value)}>
           {DAYS.map((name, index) => (
