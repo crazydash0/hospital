@@ -6,7 +6,11 @@ function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useContext(AuthContext);
 
   if (loading) {
-    return <p>Loading...</p>;
+    return (
+      <div className="page center">
+        <p className="muted">جاري التحميل...</p>
+      </div>
+    );
   }
 
   if (!user) {

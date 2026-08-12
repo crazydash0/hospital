@@ -1,0 +1,2723 @@
+From 13e660e8f4a6171f4855a318f958c9c8fcfbc028 Mon Sep 17 00:00:00 2001
+From: Claude Assistant <assistant@example.com>
+Date: Wed, 12 Aug 2026 09:39:59 +0000
+Subject: [PATCH] =?UTF-8?q?=D8=A7=D8=B3=D8=AA=D9=83=D9=85=D8=A7=D9=84=20?=
+ =?UTF-8?q?=D9=88=D8=A7=D8=AC=D9=87=D8=A9=20=D8=A7=D9=84=D9=81=D8=B1=D9=88?=
+ =?UTF-8?q?=D9=86=D8=AA:=20=D8=AA=D8=B5=D9=85=D9=8A=D9=85=20=D8=B9=D8=B1?=
+ =?UTF-8?q?=D8=A8=D9=8A=20RTL=20=D9=83=D8=A7=D9=85=D9=84=20+=20=D8=B5?=
+ =?UTF-8?q?=D9=81=D8=AD=D8=A7=D8=AA=20=D9=86=D8=A7=D9=82=D8=B5=D8=A9?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- تصميم عربي RTL جديد بهوية بصرية موحدة (Markazi Text + Cairo)
+- Navbar بروابط حسب دور المستخدم (مريض / دكتور / أدمن)
+- صفحة جديدة: مواعيد الدكتور (تأكيد + إنهاء الزيارة مع تشخيص وروشتة)
+- صفحة جديدة: لوحة تحكم الأدمن لإنشاء حسابات الدكاترة
+- صفحة جديدة: السجل الطبي للمريض (تشخيصات + روشتات)
+- تفعيل تقييم الدكتور بعد اكتمال الزيارة في صفحة مواعيدي
+- تحسين صفحات الحجز، تسجيل الدخول، التسجيل، الجدول الأسبوعي، إضافة المواعيد
+- ربط baseURL بمتغير بيئة VITE_API_URL بدل الرابط الثابت
+- الصفحة الرئيسية أصبحت Dashboard حسب دور المستخدم
+---
+ frontend/.env.example                      |   2 +
+ frontend/index.html                        |  10 +-
+ frontend/src/App.jsx                       |  93 +++-
+ frontend/src/api/axios.js                  |  19 +-
+ frontend/src/components/ProtectedRoute.jsx |   6 +-
+ frontend/src/components/StatusBadge.jsx    |  23 +
+ frontend/src/components/navbar.jsx         | 110 ++++-
+ frontend/src/index.css                     | 528 +++++++++++++++++----
+ frontend/src/pages/AdminDashboard.jsx      | 134 ++++++
+ frontend/src/pages/BookAppointment.jsx     | 144 ++++--
+ frontend/src/pages/CreateSlots.jsx         | 116 +++--
+ frontend/src/pages/DoctorAppointments.jsx  | 291 ++++++++++++
+ frontend/src/pages/Home.jsx                |  81 +++-
+ frontend/src/pages/Login.jsx               |  96 ++--
+ frontend/src/pages/MyAppointments.jsx      | 175 ++++++-
+ frontend/src/pages/MyMedicalRecords.jsx    |  95 ++++
+ frontend/src/pages/Register.jsx            | 177 +++++--
+ frontend/src/pages/WeeklySchedule.jsx      | 246 ++++++----
+ 18 files changed, 1946 insertions(+), 400 deletions(-)
+ create mode 100644 frontend/.env.example
+ create mode 100644 frontend/src/components/StatusBadge.jsx
+ create mode 100644 frontend/src/pages/AdminDashboard.jsx
+ create mode 100644 frontend/src/pages/DoctorAppointments.jsx
+ create mode 100644 frontend/src/pages/MyMedicalRecords.jsx
+
+diff --git a/frontend/.env.example b/frontend/.env.example
+new file mode 100644
+index 0000000..831c7da
+--- /dev/null
++++ b/frontend/.env.example
+@@ -0,0 +1,2 @@
++# رابط سيرفر الباك إند (NestJS)
++VITE_API_URL=http://localhost:3000
+diff --git a/frontend/index.html b/frontend/index.html
+index 79d4e49..6b9b5da 100644
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -1,10 +1,16 @@
+ <!doctype html>
+-<html lang="en">
++<html lang="ar" dir="rtl">
+   <head>
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>hospital-frontend</title>
++    <link rel="preconnect" href="https://fonts.googleapis.com" />
++    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
++    <link
++      href="https://fonts.googleapis.com/css2?family=Markazi+Text:wght@500;600;700&family=Cairo:wght@400;500;600;700;800&display=swap"
++      rel="stylesheet"
++    />
++    <title>عيادتي | حجز المواعيد الطبية</title>
+   </head>
+   <body>
+     <div id="root"></div>
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index c840d4e..499aa99 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -1,4 +1,4 @@
+-import { BrowserRouter , Route , Routes} from "react-router-dom";
++import { BrowserRouter, Route, Routes } from "react-router-dom";
+ import Home from "./pages/Home";
+ import Login from "./pages/Login";
+ import Navbar from "./components/navbar";
+@@ -8,21 +8,80 @@ import BookAppointment from "./pages/BookAppointment";
+ import CreateSlots from "./pages/CreateSlots";
+ import WeeklySchedule from "./pages/WeeklySchedule";
+ import MyAppointments from "./pages/MyAppointments";
++import DoctorAppointments from "./pages/DoctorAppointments";
++import MyMedicalRecords from "./pages/MyMedicalRecords";
++import AdminDashboard from "./pages/AdminDashboard";
+ 
+-function App(){
+-  return(
+-  <BrowserRouter>
+-    <Navbar/>
+-    <Routes>
+-      <Route path="/book" element={<ProtectedRoute><BookAppointment/></ProtectedRoute>}/>
+-      <Route path="/" element={<ProtectedRoute><Home/> </ProtectedRoute>} />
+-      <Route path = "/register" element = {<Register/>}/>
+-      <Route path="/login" element={<Login/>} />
+-      <Route path="/create-slots"element={<ProtectedRoute allowedRoles={["DOCTOR"]}><CreateSlots /></ProtectedRoute>}/>
+-      <Route path="/weekly-schedule"element={<ProtectedRoute allowedRoles={["DOCTOR"]}><WeeklySchedule /></ProtectedRoute>}/>
+-      <Route path="/my-appointments"element={<ProtectedRoute allowedRoles={["PATIENT"]}><MyAppointments /></ProtectedRoute>}/>
+-    </Routes>
+-  </BrowserRouter>
+-);
++function App() {
++  return (
++    <BrowserRouter>
++      <Navbar />
++      <Routes>
++        <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
++        <Route path="/register" element={<Register />} />
++        <Route path="/login" element={<Login />} />
++
++        <Route
++          path="/book"
++          element={
++            <ProtectedRoute allowedRoles={["PATIENT"]}>
++              <BookAppointment />
++            </ProtectedRoute>
++          }
++        />
++        <Route
++          path="/my-appointments"
++          element={
++            <ProtectedRoute allowedRoles={["PATIENT"]}>
++              <MyAppointments />
++            </ProtectedRoute>
++          }
++        />
++        <Route
++          path="/my-records"
++          element={
++            <ProtectedRoute allowedRoles={["PATIENT"]}>
++              <MyMedicalRecords />
++            </ProtectedRoute>
++          }
++        />
++
++        <Route
++          path="/create-slots"
++          element={
++            <ProtectedRoute allowedRoles={["DOCTOR"]}>
++              <CreateSlots />
++            </ProtectedRoute>
++          }
++        />
++        <Route
++          path="/weekly-schedule"
++          element={
++            <ProtectedRoute allowedRoles={["DOCTOR"]}>
++              <WeeklySchedule />
++            </ProtectedRoute>
++          }
++        />
++        <Route
++          path="/doctor-appointments"
++          element={
++            <ProtectedRoute allowedRoles={["DOCTOR"]}>
++              <DoctorAppointments />
++            </ProtectedRoute>
++          }
++        />
++
++        <Route
++          path="/admin"
++          element={
++            <ProtectedRoute allowedRoles={["ADMIN"]}>
++              <AdminDashboard />
++            </ProtectedRoute>
++          }
++        />
++      </Routes>
++    </BrowserRouter>
++  );
+ }
+-export default App ;
+\ No newline at end of file
++
++export default App;
+diff --git a/frontend/src/api/axios.js b/frontend/src/api/axios.js
+index 97a9a08..5bc5272 100644
+--- a/frontend/src/api/axios.js
++++ b/frontend/src/api/axios.js
+@@ -1,12 +1,15 @@
+ import axios from "axios";
++
+ const api = axios.create({
+-    baseURL : "http://localhost:3000",
++  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000",
+ });
+-api.interceptors.request.use((config)=> {
+-    const token = localStorage.getItem("token");
+-    if (token){
+-        config.headers.Authorization = `Bearer ${token}`;
+-    }
+-    return config;
++
++api.interceptors.request.use((config) => {
++  const token = localStorage.getItem("token");
++  if (token) {
++    config.headers.Authorization = `Bearer ${token}`;
++  }
++  return config;
+ });
+-export default api;
+\ No newline at end of file
++
++export default api;
+diff --git a/frontend/src/components/ProtectedRoute.jsx b/frontend/src/components/ProtectedRoute.jsx
+index 459ff90..b2b38ff 100644
+--- a/frontend/src/components/ProtectedRoute.jsx
++++ b/frontend/src/components/ProtectedRoute.jsx
+@@ -6,7 +6,11 @@ function ProtectedRoute({ children, allowedRoles }) {
+   const { user, loading } = useContext(AuthContext);
+ 
+   if (loading) {
+-    return <p>Loading...</p>;
++    return (
++      <div className="page center">
++        <p className="muted">جاري التحميل...</p>
++      </div>
++    );
+   }
+ 
+   if (!user) {
+diff --git a/frontend/src/components/StatusBadge.jsx b/frontend/src/components/StatusBadge.jsx
+new file mode 100644
+index 0000000..ebb1e2c
+--- /dev/null
++++ b/frontend/src/components/StatusBadge.jsx
+@@ -0,0 +1,23 @@
++const LABELS = {
++  PENDING: "قيد الانتظار",
++  CONFIRMED: "مؤكد",
++  COMPLETED: "مكتمل",
++  CANCELLED: "ملغي",
++};
++
++const CLASSES = {
++  PENDING: "badge badge-pending",
++  CONFIRMED: "badge badge-confirmed",
++  COMPLETED: "badge badge-completed",
++  CANCELLED: "badge badge-cancelled",
++};
++
++function StatusBadge({ status }) {
++  return (
++    <span className={CLASSES[status] || "badge badge-pending"}>
++      {LABELS[status] || status}
++    </span>
++  );
++}
++
++export default StatusBadge;
+diff --git a/frontend/src/components/navbar.jsx b/frontend/src/components/navbar.jsx
+index f90ffec..b146706 100644
+--- a/frontend/src/components/navbar.jsx
++++ b/frontend/src/components/navbar.jsx
+@@ -1,24 +1,98 @@
+ import { AuthContext } from "../context/AuthContext";
+ import { useContext } from "react";
+-function Navbar(){
++import { NavLink, useNavigate } from "react-router-dom";
+ 
+-const{user , setUser} = useContext(AuthContext);
++const ROLE_LABELS = {
++  PATIENT: "مريض",
++  DOCTOR: "دكتور",
++  ADMIN: "أدمن",
++};
+ 
+-function handleLogout(){
+-localStorage.removeItem("token")
+-setUser(null) ;
+-}
+-return(
+-    <nav>
+-      {user ? (
+-        <>
+-          <h1>Hello, {user.fullName||user.email}</h1>
+-          <button onClick={handleLogout}>Logout</button>
+-        </>
+-      ) : (
+-        <a href="/login">Login</a>
+-      )}
++function Navbar() {
++  const { user, setUser } = useContext(AuthContext);
++  const navigate = useNavigate();
++
++  function handleLogout() {
++    localStorage.removeItem("token");
++    setUser(null);
++    navigate("/login");
++  }
++
++  const patientLinks = [
++    { to: "/", label: "الرئيسية" },
++    { to: "/book", label: "احجز موعد" },
++    { to: "/my-appointments", label: "مواعيدي" },
++    { to: "/my-records", label: "سجلي الطبي" },
++  ];
++
++  const doctorLinks = [
++    { to: "/", label: "الرئيسية" },
++    { to: "/doctor-appointments", label: "مواعيدي" },
++    { to: "/weekly-schedule", label: "الجدول الأسبوعي" },
++    { to: "/create-slots", label: "إضافة مواعيد" },
++  ];
++
++  const adminLinks = [
++    { to: "/", label: "الرئيسية" },
++    { to: "/admin", label: "لوحة التحكم" },
++  ];
++
++  const links = !user
++    ? []
++    : user.role === "DOCTOR"
++    ? doctorLinks
++    : user.role === "ADMIN"
++    ? adminLinks
++    : patientLinks;
++
++  return (
++    <nav className="navbar">
++      <div className="navbar-inner">
++        <NavLink to="/" className="navbar-brand">
++          <span className="dot" />
++          عيادتي
++        </NavLink>
++
++        {user && (
++          <div className="navbar-links">
++            {links.map((link) => (
++              <NavLink
++                key={link.to}
++                to={link.to}
++                end={link.to === "/"}
++                className={({ isActive }) =>
++                  isActive ? "navbar-link active" : "navbar-link"
++                }
++              >
++                {link.label}
++              </NavLink>
++            ))}
++          </div>
++        )}
++
++        {!user && <div style={{ flex: 1 }} />}
++
++        {user ? (
++          <div className="navbar-user">
++            <span className="role-tag">{ROLE_LABELS[user.role] || user.role}</span>
++            <span className="name">{user.fullName || user.email}</span>
++            <button className="btn btn-outline btn-sm" onClick={handleLogout}>
++              تسجيل خروج
++            </button>
++          </div>
++        ) : (
++          <div className="row">
++            <NavLink to="/login" className="btn btn-outline btn-sm">
++              تسجيل دخول
++            </NavLink>
++            <NavLink to="/register" className="btn btn-primary btn-sm">
++              حساب جديد
++            </NavLink>
++          </div>
++        )}
++      </div>
+     </nav>
+-)
++  );
+ }
+-export default Navbar
+\ No newline at end of file
++
++export default Navbar;
+diff --git a/frontend/src/index.css b/frontend/src/index.css
+index 2c84af0..e6cb388 100644
+--- a/frontend/src/index.css
++++ b/frontend/src/index.css
+@@ -1,111 +1,475 @@
+ :root {
+-  --text: #6b6375;
+-  --text-h: #08060d;
+-  --bg: #fff;
+-  --border: #e5e4e7;
+-  --code-bg: #f4f3ec;
+-  --accent: #aa3bff;
+-  --accent-bg: rgba(170, 59, 255, 0.1);
+-  --accent-border: rgba(170, 59, 255, 0.5);
+-  --social-bg: rgba(244, 243, 236, 0.5);
+-  --shadow:
+-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+-
+-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+-  --mono: ui-monospace, Consolas, monospace;
+-
+-  font: 18px/145% var(--sans);
+-  letter-spacing: 0.18px;
+-  color-scheme: light dark;
+-  color: var(--text);
++  --teal-950: #0d2b26;
++  --teal-900: #123f37;
++  --teal-800: #155e52;
++  --teal-700: #1a7565;
++  --teal-600: #218b77;
++  --teal-100: #e4f2ee;
++  --teal-50: #f3f8f6;
++
++  --rose-700: #8f3a4d;
++  --rose-600: #a6435b;
++  --rose-500: #bd5468;
++  --rose-100: #f7e7ea;
++
++  --amber-600: #c98a2e;
++  --amber-100: #faefd9;
++
++  --green-600: #2f8f5b;
++  --green-100: #e2f4ea;
++
++  --red-600: #b94a3e;
++  --red-100: #fbe7e4;
++
++  --ink: #132420;
++  --muted: #5b6b67;
++  --faint: #8a9b96;
++  --border: #dce5e1;
++  --bg: #f3f6f4;
++  --surface: #ffffff;
++  --shadow-sm: 0 1px 2px rgba(19, 36, 32, 0.06);
++  --shadow-md: 0 8px 24px rgba(19, 36, 32, 0.08);
++  --radius: 14px;
++  --radius-sm: 9px;
++
++  --display: "Markazi Text", "Cairo", serif;
++  --sans: "Cairo", system-ui, sans-serif;
++
++  color-scheme: light;
++  color: var(--ink);
+   background: var(--bg);
+-  font-synthesis: none;
+-  text-rendering: optimizeLegibility;
+   -webkit-font-smoothing: antialiased;
+   -moz-osx-font-smoothing: grayscale;
+-
+-  @media (max-width: 1024px) {
+-    font-size: 16px;
+-  }
+ }
+ 
+-@media (prefers-color-scheme: dark) {
+-  :root {
+-    --text: #9ca3af;
+-    --text-h: #f3f4f6;
+-    --bg: #16171d;
+-    --border: #2e303a;
+-    --code-bg: #1f2028;
+-    --accent: #c084fc;
+-    --accent-bg: rgba(192, 132, 252, 0.15);
+-    --accent-border: rgba(192, 132, 252, 0.5);
+-    --social-bg: rgba(47, 48, 58, 0.5);
+-    --shadow:
+-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+-  }
++* {
++  box-sizing: border-box;
++}
+ 
+-  #social .button-icon {
+-    filter: invert(1) brightness(2);
+-  }
++html, body {
++  margin: 0;
++  padding: 0;
+ }
+ 
+ body {
+-  margin: 0;
++  font-family: var(--sans);
++  background: var(--bg);
++  color: var(--ink);
++  line-height: 1.6;
+ }
+ 
+ #root {
+-  width: 1126px;
+-  max-width: 100%;
+-  margin: 0 auto;
+-  text-align: center;
+-  border-inline: 1px solid var(--border);
+   min-height: 100svh;
+   display: flex;
+   flex-direction: column;
+-  box-sizing: border-box;
+ }
+ 
+-h1,
+-h2 {
+-  font-family: var(--heading);
+-  font-weight: 500;
+-  color: var(--text-h);
++h1, h2, h3 {
++  font-family: var(--display);
++  color: var(--teal-950);
++  font-weight: 700;
++  margin: 0 0 6px;
++  letter-spacing: 0.2px;
+ }
+ 
+-h1 {
+-  font-size: 56px;
+-  letter-spacing: -1.68px;
+-  margin: 32px 0;
+-  @media (max-width: 1024px) {
+-    font-size: 36px;
+-    margin: 20px 0;
+-  }
++h1 { font-size: 34px; }
++h2 { font-size: 24px; }
++h3 { font-size: 19px; }
++
++p { margin: 0; }
++
++a { color: var(--teal-700); text-decoration: none; }
++a:hover { text-decoration: underline; }
++
++button, input, select, textarea {
++  font-family: var(--sans);
++  font-size: 15.5px;
++}
++
++/* ---------- layout ---------- */
++.page {
++  width: 100%;
++  max-width: 1040px;
++  margin: 0 auto;
++  padding: 28px 20px 64px;
++  flex: 1;
++}
++
++.page-head {
++  margin-bottom: 22px;
+ }
+-h2 {
++
++.page-head p.subtitle {
++  color: var(--muted);
++  margin-top: 4px;
++  font-size: 15.5px;
++}
++
++.section {
++  margin-top: 34px;
++}
++
++.grid {
++  display: grid;
++  gap: 16px;
++}
++
++.grid-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
++.grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
++
++/* ---------- navbar ---------- */
++.navbar {
++  position: sticky;
++  top: 0;
++  z-index: 20;
++  background: var(--surface);
++  border-bottom: 1px solid var(--border);
++  box-shadow: var(--shadow-sm);
++}
++
++.navbar-inner {
++  max-width: 1040px;
++  margin: 0 auto;
++  padding: 12px 20px;
++  display: flex;
++  align-items: center;
++  gap: 18px;
++}
++
++.navbar-brand {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  font-family: var(--display);
+   font-size: 24px;
+-  line-height: 118%;
+-  letter-spacing: -0.24px;
+-  margin: 0 0 8px;
+-  @media (max-width: 1024px) {
+-    font-size: 20px;
+-  }
+-}
+-p {
+-  margin: 0;
++  font-weight: 700;
++  color: var(--teal-900);
++  white-space: nowrap;
++}
++
++.navbar-brand .dot {
++  width: 10px;
++  height: 10px;
++  border-radius: 50%;
++  background: var(--rose-600);
++  display: inline-block;
++}
++
++.navbar-links {
++  display: flex;
++  gap: 4px;
++  flex-wrap: wrap;
++  flex: 1;
++}
++
++.navbar-link {
++  padding: 8px 14px;
++  border-radius: 999px;
++  color: var(--muted);
++  font-weight: 600;
++  font-size: 14.5px;
++  white-space: nowrap;
++}
++
++.navbar-link:hover {
++  background: var(--teal-50);
++  text-decoration: none;
++  color: var(--teal-800);
++}
++
++.navbar-link.active {
++  background: var(--teal-800);
++  color: #fff;
++}
++
++.navbar-user {
++  display: flex;
++  align-items: center;
++  gap: 10px;
++  white-space: nowrap;
++}
++
++.navbar-user .name {
++  font-weight: 600;
++  color: var(--teal-950);
++  font-size: 14.5px;
++}
++
++.navbar-user .role-tag {
++  font-size: 11.5px;
++  color: var(--teal-700);
++  background: var(--teal-100);
++  padding: 2px 9px;
++  border-radius: 999px;
++  font-weight: 700;
++}
++
++/* ---------- cards ---------- */
++.card {
++  background: var(--surface);
++  border: 1px solid var(--border);
++  border-radius: var(--radius);
++  padding: 20px;
++  box-shadow: var(--shadow-sm);
++}
++
++.card-row {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 14px;
++  padding: 14px 18px;
++  background: var(--surface);
++  border: 1px solid var(--border);
++  border-radius: var(--radius-sm);
+ }
+ 
+-code,
+-.counter {
+-  font-family: var(--mono);
++.card-row + .card-row {
++  margin-top: 10px;
++}
++
++.empty-state {
++  padding: 34px 20px;
++  text-align: center;
++  color: var(--muted);
++  border: 1px dashed var(--border);
++  border-radius: var(--radius);
++  background: var(--teal-50);
++}
++
++/* ---------- forms ---------- */
++.field {
++  display: flex;
++  flex-direction: column;
++  gap: 6px;
++  margin-bottom: 14px;
++}
++
++.field label {
++  font-size: 13.5px;
++  font-weight: 700;
++  color: var(--teal-900);
++}
++
++.field .hint {
++  font-size: 12.5px;
++  color: var(--faint);
++}
++
++input[type="text"],
++input[type="email"],
++input[type="password"],
++input[type="date"],
++input[type="number"],
++select,
++textarea {
++  width: 100%;
++  padding: 10px 13px;
++  border: 1.5px solid var(--border);
++  border-radius: var(--radius-sm);
++  background: #fff;
++  color: var(--ink);
++  outline: none;
++  transition: border-color 0.15s ease;
++}
++
++input:focus, select:focus, textarea:focus {
++  border-color: var(--teal-600);
++}
++
++textarea { resize: vertical; min-height: 80px; }
++
++.form-grid {
++  display: grid;
++  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
++  gap: 12px 14px;
++}
++
++.form-card {
++  max-width: 440px;
++  margin: 40px auto;
++}
++
++.form-card.wide { max-width: 620px; }
++
++/* ---------- buttons ---------- */
++.btn {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  gap: 6px;
++  padding: 10px 18px;
++  border-radius: 999px;
++  font-weight: 700;
++  font-size: 14.5px;
++  border: 1.5px solid transparent;
++  cursor: pointer;
++  transition: transform 0.06s ease, opacity 0.15s ease;
++}
++
++.btn:active { transform: scale(0.97); }
++.btn:disabled { opacity: 0.55; cursor: not-allowed; }
++
++.btn-primary {
++  background: var(--teal-800);
++  color: #fff;
++}
++.btn-primary:hover { background: var(--teal-900); }
++
++.btn-accent {
++  background: var(--rose-600);
++  color: #fff;
++}
++.btn-accent:hover { background: var(--rose-700); }
++
++.btn-outline {
++  background: transparent;
++  border-color: var(--border);
++  color: var(--teal-900);
++}
++.btn-outline:hover { border-color: var(--teal-700); background: var(--teal-50); }
++
++.btn-danger {
++  background: transparent;
++  border-color: var(--red-600);
++  color: var(--red-600);
++}
++.btn-danger:hover { background: var(--red-100); }
++
++.btn-sm { padding: 6px 13px; font-size: 13px; }
++.btn-block { width: 100%; }
++
++/* ---------- badges / status ---------- */
++.badge {
+   display: inline-flex;
+-  border-radius: 4px;
+-  color: var(--text-h);
++  align-items: center;
++  gap: 5px;
++  padding: 4px 11px;
++  border-radius: 999px;
++  font-size: 12.5px;
++  font-weight: 700;
++}
++
++.badge::before {
++  content: "";
++  width: 6px;
++  height: 6px;
++  border-radius: 50%;
++  background: currentColor;
++}
++
++.badge-pending { background: var(--amber-100); color: var(--amber-600); }
++.badge-confirmed { background: var(--teal-100); color: var(--teal-700); }
++.badge-completed { background: var(--green-100); color: var(--green-600); }
++.badge-cancelled { background: var(--red-100); color: var(--red-600); }
++
++/* ---------- alerts ---------- */
++.alert {
++  padding: 11px 15px;
++  border-radius: var(--radius-sm);
++  font-size: 14.5px;
++  font-weight: 600;
++  margin-bottom: 14px;
++}
++.alert-info { background: var(--teal-50); color: var(--teal-800); border: 1px solid var(--teal-100); }
++.alert-error { background: var(--red-100); color: var(--red-600); border: 1px solid #f0c6c1; }
++.alert-success { background: var(--green-100); color: var(--green-600); border: 1px solid #c9e9d5; }
++
++/* ---------- misc ---------- */
++.muted { color: var(--muted); }
++.center { text-align: center; }
++.stack { display: flex; flex-direction: column; gap: 10px; }
++.row { display: flex; align-items: center; gap: 10px; }
++.row.between { justify-content: space-between; }
++.row.wrap { flex-wrap: wrap; }
++
++.doctor-avatar {
++  width: 46px;
++  height: 46px;
++  border-radius: 50%;
++  background: linear-gradient(135deg, var(--teal-700), var(--teal-950));
++  color: #fff;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  font-weight: 700;
++  font-size: 17px;
++  flex-shrink: 0;
+ }
+ 
+-code {
++.tabs {
++  display: flex;
++  gap: 6px;
++  border-bottom: 1px solid var(--border);
++  margin-bottom: 18px;
++  overflow-x: auto;
++}
++
++.tab {
++  padding: 9px 4px;
++  margin-left: 18px;
++  font-weight: 700;
++  color: var(--muted);
++  border-bottom: 2px solid transparent;
++  cursor: pointer;
++  white-space: nowrap;
++  background: none;
++  border-top: none;
++  border-right: none;
++  border-left: none;
+   font-size: 15px;
+-  line-height: 135%;
+-  padding: 4px 8px;
+-  background: var(--code-bg);
++}
++
++.tab.active {
++  color: var(--teal-800);
++  border-bottom-color: var(--rose-600);
++}
++
++.modal-overlay {
++  position: fixed;
++  inset: 0;
++  background: rgba(13, 43, 38, 0.45);
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  padding: 20px;
++  z-index: 50;
++}
++
++.modal {
++  background: #fff;
++  border-radius: var(--radius);
++  padding: 24px;
++  width: 100%;
++  max-width: 520px;
++  max-height: 85vh;
++  overflow-y: auto;
++  box-shadow: var(--shadow-md);
++}
++
++.rx-row {
++  display: grid;
++  grid-template-columns: 1fr 1fr;
++  gap: 8px;
++  padding: 12px;
++  background: var(--teal-50);
++  border-radius: var(--radius-sm);
++  margin-bottom: 8px;
++  position: relative;
++}
++
++.star-rating {
++  display: flex;
++  gap: 4px;
++  font-size: 22px;
++  color: var(--border);
++  cursor: pointer;
++}
++.star-rating .filled { color: var(--amber-600); }
++
++@media (max-width: 640px) {
++  h1 { font-size: 27px; }
++  .navbar-inner { flex-wrap: wrap; }
++  .navbar-links { order: 3; width: 100%; }
++  .form-card { margin: 20px auto; }
+ }
+diff --git a/frontend/src/pages/AdminDashboard.jsx b/frontend/src/pages/AdminDashboard.jsx
+new file mode 100644
+index 0000000..a45eee5
+--- /dev/null
++++ b/frontend/src/pages/AdminDashboard.jsx
+@@ -0,0 +1,134 @@
++import { useState } from "react";
++import api from "../api/axios";
++
++function AdminDashboard() {
++  const [form, setForm] = useState({
++    email: "",
++    password: "",
++    fullName: "",
++    specialty: "",
++    price: "",
++    bio: "",
++  });
++  const [error, setError] = useState("");
++  const [success, setSuccess] = useState("");
++  const [submitting, setSubmitting] = useState(false);
++
++  function update(field, value) {
++    setForm((prev) => ({ ...prev, [field]: value }));
++  }
++
++  async function handleSubmit(e) {
++    e.preventDefault();
++    setError("");
++    setSuccess("");
++    setSubmitting(true);
++    try {
++      await api.post("/admin/doctor", {
++        email: form.email,
++        password: form.password,
++        fullName: form.fullName,
++        specialty: form.specialty,
++        price: Number(form.price),
++        bio: form.bio || undefined,
++      });
++      setSuccess(`تم إنشاء حساب الدكتور "${form.fullName}" بنجاح. ابعت له بيانات الدخول عشان يكمّل بروفايله.`);
++      setForm({ email: "", password: "", fullName: "", specialty: "", price: "", bio: "" });
++    } catch (err) {
++      setError(err.response?.data?.message || "حصل خطأ أثناء إنشاء حساب الدكتور");
++    } finally {
++      setSubmitting(false);
++    }
++  }
++
++  return (
++    <div className="page">
++      <div className="page-head">
++        <h1>لوحة تحكم الأدمن</h1>
++        <p className="subtitle">أضف حسابات الدكاترة اللي هيشتغلوا في العيادة.</p>
++      </div>
++
++      <div className="card form-card wide">
++        <h2>إضافة دكتور جديد</h2>
++        {error && <div className="alert alert-error">{error}</div>}
++        {success && <div className="alert alert-success">{success}</div>}
++
++        <form onSubmit={handleSubmit}>
++          <div className="form-grid">
++            <div className="field">
++              <label>اسم الدكتور *</label>
++              <input
++                type="text"
++                placeholder="أحمد محمد"
++                value={form.fullName}
++                onChange={(e) => update("fullName", e.target.value)}
++                required
++              />
++            </div>
++            <div className="field">
++              <label>التخصص *</label>
++              <input
++                type="text"
++                placeholder="باطنة، جراحة، أسنان..."
++                value={form.specialty}
++                onChange={(e) => update("specialty", e.target.value)}
++                required
++              />
++            </div>
++          </div>
++
++          <div className="form-grid">
++            <div className="field">
++              <label>البريد الإلكتروني *</label>
++              <input
++                type="email"
++                placeholder="doctor@clinic.com"
++                value={form.email}
++                onChange={(e) => update("email", e.target.value)}
++                required
++              />
++            </div>
++            <div className="field">
++              <label>كلمة مرور مؤقتة *</label>
++              <input
++                type="text"
++                placeholder="6 أحرف على الأقل"
++                value={form.password}
++                onChange={(e) => update("password", e.target.value)}
++                minLength={6}
++                required
++              />
++            </div>
++          </div>
++
++          <div className="field">
++            <label>سعر الكشف (جنيه) *</label>
++            <input
++              type="number"
++              placeholder="300"
++              value={form.price}
++              onChange={(e) => update("price", e.target.value)}
++              min="0"
++              required
++            />
++          </div>
++
++          <div className="field">
++            <label>نبذة عن الدكتور</label>
++            <textarea
++              placeholder="خبرة 10 سنين في علاج أمراض القلب..."
++              value={form.bio}
++              onChange={(e) => update("bio", e.target.value)}
++            />
++          </div>
++
++          <button type="submit" className="btn btn-primary" disabled={submitting}>
++            {submitting ? "جاري الإنشاء..." : "إنشاء حساب الدكتور"}
++          </button>
++        </form>
++      </div>
++    </div>
++  );
++}
++
++export default AdminDashboard;
+diff --git a/frontend/src/pages/BookAppointment.jsx b/frontend/src/pages/BookAppointment.jsx
+index 873ee3d..65e25c9 100644
+--- a/frontend/src/pages/BookAppointment.jsx
++++ b/frontend/src/pages/BookAppointment.jsx
+@@ -3,68 +3,142 @@ import api from "../api/axios";
+ 
+ function BookAppointment() {
+   const [doctors, setDoctors] = useState([]);
+-  const [selectedDoctorId, setSelectedDoctorId] = useState(null);
++  const [selectedDoctor, setSelectedDoctor] = useState(null);
+   const [slots, setSlots] = useState([]);
+   const [message, setMessage] = useState("");
++  const [error, setError] = useState("");
++  const [loadingSlots, setLoadingSlots] = useState(false);
+ 
+   useEffect(() => {
+     async function fetchDoctors() {
+       try {
+         const response = await api.get("/doctors");
+         setDoctors(response.data);
+-      } catch (error) {
+-        console.log(error);
++      } catch (err) {
++        console.log(err);
+       }
+     }
+     fetchDoctors();
+   }, []);
+ 
+   useEffect(() => {
+-    if (!selectedDoctorId) return;
+-
++    if (!selectedDoctor) return;
++    setLoadingSlots(true);
++    setError("");
+     async function fetchSlots() {
+       try {
+-        const response = await api.get(`/appointments/doctor/${selectedDoctorId}/slots`);
++        const response = await api.get(
++          `/appointments/doctor/${selectedDoctor.id}/slots`
++        );
+         setSlots(response.data);
+-      } catch (error) {
+-        console.log(error);
++      } catch (err) {
++        console.log(err);
++      } finally {
++        setLoadingSlots(false);
+       }
+     }
+     fetchSlots();
+-  }, [selectedDoctorId]);
+-
+-  return (
+-    <div>
+-      <h1>Book an Appointment</h1>
+-
+-      {doctors.map((doctor) => (
+-        <div key={doctor.id}>
+-          <p>{doctor.fullName}</p>
+-          <button onClick={() => setSelectedDoctorId(doctor.id)}>Select</button>
+-        </div>
+-      ))}
++  }, [selectedDoctor]);
+ 
+-      <h2>Available Slots</h2>
+-      {message && <p>{message}</p>}
+-      {slots.map((slot) => (
+-        <div key={slot.id}>
+-          <span>{new Date(slot.startTime).toLocaleString()}</span>
+-          <button onClick={() => handleBook(slot.id)}>Book</button>
+-        </div>
+-      ))}
+-    </div>
+-  );
+   async function handleBook(slotId) {
+     setMessage("");
++    setError("");
+     try {
+       await api.post("/appointments", { slotId });
+-      setMessage("Appointment booked successfully!");
+-      const response = await api.get(`/appointments/doctor/${selectedDoctorId}/slots`);
++      setMessage("تم حجز الموعد بنجاح ✅");
++      const response = await api.get(
++        `/appointments/doctor/${selectedDoctor.id}/slots`
++      );
+       setSlots(response.data);
+-    } catch (error) {
+-      setMessage(error.response?.data?.message || "Something went wrong");
++    } catch (err) {
++      setError(err.response?.data?.message || "حصل خطأ أثناء الحجز");
+     }
+   }
++
++  return (
++    <div className="page">
++      <div className="page-head">
++        <h1>احجز موعد</h1>
++        <p className="subtitle">اختار الدكتور المناسب، وبعدين اختار الموعد الفاضي المناسب لك.</p>
++      </div>
++
++      {doctors.length === 0 ? (
++        <div className="empty-state">لا يوجد دكاترة متاحين حاليًا.</div>
++      ) : (
++        <div className="grid grid-3">
++          {doctors.map((doctor) => (
++            <div
++              key={doctor.id}
++              className="card"
++              style={{
++                cursor: "pointer",
++                borderColor:
++                  selectedDoctor?.id === doctor.id ? "var(--teal-700)" : undefined,
++                boxShadow:
++                  selectedDoctor?.id === doctor.id ? "0 0 0 2px var(--teal-100)" : undefined,
++              }}
++              onClick={() => setSelectedDoctor(doctor)}
++            >
++              <div className="row" style={{ marginBottom: 10 }}>
++                <div className="doctor-avatar">
++                  {(doctor.fullName || "د")[0]}
++                </div>
++                <div>
++                  <h3 style={{ marginBottom: 2 }}>د. {doctor.fullName}</h3>
++                  <span className="muted" style={{ fontSize: 13.5 }}>{doctor.specialty}</span>
++                </div>
++              </div>
++              {doctor.bio && (
++                <p className="muted" style={{ fontSize: 14, marginBottom: 10 }}>
++                  {doctor.bio}
++                </p>
++              )}
++              <div className="row between">
++                <strong style={{ color: "var(--teal-800)" }}>{doctor.price} ج.م</strong>
++                <button className="btn btn-outline btn-sm">
++                  {selectedDoctor?.id === doctor.id ? "تم الاختيار" : "اختيار"}
++                </button>
++              </div>
++            </div>
++          ))}
++        </div>
++      )}
++
++      {selectedDoctor && (
++        <div className="section">
++          <h2>المواعيد المتاحة مع د. {selectedDoctor.fullName}</h2>
++          {message && <div className="alert alert-success">{message}</div>}
++          {error && <div className="alert alert-error">{error}</div>}
++
++          {loadingSlots ? (
++            <p className="muted">جاري تحميل المواعيد...</p>
++          ) : slots.length === 0 ? (
++            <div className="empty-state">مفيش مواعيد متاحة حاليًا لهذا الدكتور.</div>
++          ) : (
++            <div className="stack">
++              {slots.map((slot) => (
++                <div key={slot.id} className="card-row">
++                  <span>
++                    {new Date(slot.startTime).toLocaleString("ar-EG", {
++                      weekday: "long",
++                      year: "numeric",
++                      month: "long",
++                      day: "numeric",
++                      hour: "2-digit",
++                      minute: "2-digit",
++                    })}
++                  </span>
++                  <button className="btn btn-primary btn-sm" onClick={() => handleBook(slot.id)}>
++                    احجز
++                  </button>
++                </div>
++              ))}
++            </div>
++          )}
++        </div>
++      )}
++    </div>
++  );
+ }
+ 
+-export default BookAppointment;
+\ No newline at end of file
++export default BookAppointment;
+diff --git a/frontend/src/pages/CreateSlots.jsx b/frontend/src/pages/CreateSlots.jsx
+index 0299e66..c37b728 100644
+--- a/frontend/src/pages/CreateSlots.jsx
++++ b/frontend/src/pages/CreateSlots.jsx
+@@ -7,11 +7,14 @@ function CreateSlots() {
+   const [endHour, setEndHour] = useState("");
+   const [duration, setDuration] = useState("30");
+   const [message, setMessage] = useState("");
++  const [error, setError] = useState("");
++  const [submitting, setSubmitting] = useState(false);
+ 
+   async function handleSubmit(e) {
+     e.preventDefault();
+     setMessage("");
+-
++    setError("");
++    setSubmitting(true);
+     try {
+       await api.post("/appointments/slots", {
+         date,
+@@ -19,55 +22,82 @@ function CreateSlots() {
+         endHour: Number(endHour),
+         duration: Number(duration),
+       });
+-      setMessage("Slots created successfully!");
+-    } catch (error) {
+-      setMessage(error.response?.data?.message || "Something went wrong");
++      setMessage("تم إضافة المواعيد بنجاح ✅");
++    } catch (err) {
++      setError(err.response?.data?.message || "حصل خطأ أثناء إضافة المواعيد");
++    } finally {
++      setSubmitting(false);
+     }
+   }
+ 
+   return (
+-    <div>
+-      <h1>Set Your Available Hours</h1>
+-      <form onSubmit={handleSubmit}>
+-        <input
+-          type="date"
+-          value={date}
+-          onChange={(e) => setDate(e.target.value)}
+-        />
+-        <input
+-          type="number"
+-          placeholder="Start Hour (e.g. 9)"
+-          value={startHour}
+-          onChange={(e) => setStartHour(e.target.value)}
+-        />
+-        <input
+-          type="number"
+-          placeholder="End Hour (e.g. 17)"
+-          value={endHour}
+-          onChange={(e) => setEndHour(e.target.value)}
+-        />
++    <div className="page">
++      <div className="card form-card">
++        <div className="page-head">
++          <h1>إضافة مواعيد فاضية</h1>
++          <p className="subtitle">حدد يوم معين وهنقسمه لمواعيد حسب المدة اللي تختارها.</p>
++        </div>
++
++        {message && <div className="alert alert-success">{message}</div>}
++        {error && <div className="alert alert-error">{error}</div>}
+ 
+-        <input
+-          type="number"
+-          placeholder="Duration in minutes"
+-          value={duration}
+-          onChange={(e) => setDuration(e.target.value)}
+-          min="5"
+-          max="240"
+-          list="duration-options"
+-        />
+-        <datalist id="duration-options">
+-          <option value="15" />
+-          <option value="30" />
+-          <option value="45" />
+-          <option value="60" />
+-        </datalist>
++        <form onSubmit={handleSubmit}>
++          <div className="field">
++            <label>التاريخ</label>
++            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
++          </div>
++          <div className="form-grid">
++            <div className="field">
++              <label>من الساعة (مثال: 9)</label>
++              <input
++                type="number"
++                placeholder="9"
++                value={startHour}
++                onChange={(e) => setStartHour(e.target.value)}
++                min="0"
++                max="23"
++                required
++              />
++            </div>
++            <div className="field">
++              <label>إلى الساعة (مثال: 17)</label>
++              <input
++                type="number"
++                placeholder="17"
++                value={endHour}
++                onChange={(e) => setEndHour(e.target.value)}
++                min="0"
++                max="23"
++                required
++              />
++            </div>
++          </div>
++          <div className="field">
++            <label>مدة الموعد بالدقايق</label>
++            <input
++              type="number"
++              value={duration}
++              onChange={(e) => setDuration(e.target.value)}
++              min="5"
++              max="240"
++              list="duration-options"
++              required
++            />
++            <datalist id="duration-options">
++              <option value="15" />
++              <option value="30" />
++              <option value="45" />
++              <option value="60" />
++            </datalist>
++          </div>
+ 
+-        <button type="submit">Create Slots</button>
+-      </form>
+-      {message && <p>{message}</p>}
++          <button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
++            {submitting ? "جاري الإضافة..." : "إضافة المواعيد"}
++          </button>
++        </form>
++      </div>
+     </div>
+   );
+ }
+ 
+-export default CreateSlots;
+\ No newline at end of file
++export default CreateSlots;
+diff --git a/frontend/src/pages/DoctorAppointments.jsx b/frontend/src/pages/DoctorAppointments.jsx
+new file mode 100644
+index 0000000..31b5a6b
+--- /dev/null
++++ b/frontend/src/pages/DoctorAppointments.jsx
+@@ -0,0 +1,291 @@
++import { useState, useEffect } from "react";
++import api from "../api/axios";
++import StatusBadge from "../components/StatusBadge";
++
++const emptyRx = () => ({
++  medicineName: "",
++  dosage: "",
++  frequency: "",
++  duration: "",
++  instructions: "",
++});
++
++function CompleteVisitModal({ appointment, onClose, onDone }) {
++  const [diagnosis, setDiagnosis] = useState("");
++  const [notes, setNotes] = useState("");
++  const [additionalInstructions, setAdditionalInstructions] = useState("");
++  const [prescriptions, setPrescriptions] = useState([emptyRx()]);
++  const [error, setError] = useState("");
++  const [submitting, setSubmitting] = useState(false);
++
++  function updateRx(index, field, value) {
++    setPrescriptions((prev) =>
++      prev.map((rx, i) => (i === index ? { ...rx, [field]: value } : rx))
++    );
++  }
++
++  function addRx() {
++    setPrescriptions((prev) => [...prev, emptyRx()]);
++  }
++
++  function removeRx(index) {
++    setPrescriptions((prev) => prev.filter((_, i) => i !== index));
++  }
++
++  async function handleSubmit(e) {
++    e.preventDefault();
++    setError("");
++
++    if (!diagnosis.trim()) {
++      setError("لازم تكتب التشخيص");
++      return;
++    }
++
++    const cleanedRx = prescriptions.filter((rx) => rx.medicineName.trim());
++
++    setSubmitting(true);
++    try {
++      await api.post("/medical-records", {
++        appointmentId: appointment.id,
++        diagnosis,
++        notes: notes || undefined,
++        additionalInstructions: additionalInstructions || undefined,
++        prescriptions: cleanedRx,
++      });
++      await api.patch(`/appointments/${appointment.id}/complete`);
++      onDone();
++    } catch (err) {
++      setError(err.response?.data?.message || "حصل خطأ أثناء حفظ الزيارة");
++    } finally {
++      setSubmitting(false);
++    }
++  }
++
++  return (
++    <div className="modal-overlay" onClick={onClose}>
++      <div className="modal" onClick={(e) => e.stopPropagation()}>
++        <h2>إنهاء الزيارة — {appointment.patient.fullName}</h2>
++        <p className="muted" style={{ marginBottom: 14, fontSize: 14 }}>
++          سجّل التشخيص والروشتة عشان تتحفظ في السجل الطبي للمريض.
++        </p>
++
++        {error && <div className="alert alert-error">{error}</div>}
++
++        <form onSubmit={handleSubmit}>
++          <div className="field">
++            <label>التشخيص *</label>
++            <input
++              type="text"
++              placeholder="مثال: التهاب الجيوب الأنفية الحاد"
++              value={diagnosis}
++              onChange={(e) => setDiagnosis(e.target.value)}
++              required
++            />
++          </div>
++          <div className="field">
++            <label>ملاحظات</label>
++            <textarea
++              placeholder="حالة المريض بشكل عام..."
++              value={notes}
++              onChange={(e) => setNotes(e.target.value)}
++            />
++          </div>
++          <div className="field">
++            <label>تعليمات إضافية</label>
++            <textarea
++              placeholder="راحة، شرب مياه بكثرة..."
++              value={additionalInstructions}
++              onChange={(e) => setAdditionalInstructions(e.target.value)}
++            />
++          </div>
++
++          <div className="field">
++            <label>الروشتة</label>
++            {prescriptions.map((rx, i) => (
++              <div key={i} className="rx-row">
++                <input
++                  type="text"
++                  placeholder="اسم الدواء"
++                  value={rx.medicineName}
++                  onChange={(e) => updateRx(i, "medicineName", e.target.value)}
++                />
++                <input
++                  type="text"
++                  placeholder="الجرعة (مثال: 500 مج)"
++                  value={rx.dosage}
++                  onChange={(e) => updateRx(i, "dosage", e.target.value)}
++                />
++                <input
++                  type="text"
++                  placeholder="عدد المرات (مثال: مرتين يوميًا)"
++                  value={rx.frequency}
++                  onChange={(e) => updateRx(i, "frequency", e.target.value)}
++                />
++                <input
++                  type="text"
++                  placeholder="المدة (مثال: 5 أيام)"
++                  value={rx.duration}
++                  onChange={(e) => updateRx(i, "duration", e.target.value)}
++                />
++                <input
++                  type="text"
++                  placeholder="تعليمات (اختياري)"
++                  value={rx.instructions}
++                  onChange={(e) => updateRx(i, "instructions", e.target.value)}
++                  style={{ gridColumn: "1 / -1" }}
++                />
++                {prescriptions.length > 1 && (
++                  <button
++                    type="button"
++                    className="btn btn-danger btn-sm"
++                    style={{ gridColumn: "1 / -1" }}
++                    onClick={() => removeRx(i)}
++                  >
++                    حذف الدواء
++                  </button>
++                )}
++              </div>
++            ))}
++            <button type="button" className="btn btn-outline btn-sm" onClick={addRx}>
++              + إضافة دواء آخر
++            </button>
++          </div>
++
++          <div className="row" style={{ marginTop: 14 }}>
++            <button type="submit" className="btn btn-primary" disabled={submitting}>
++              {submitting ? "جاري الحفظ..." : "حفظ وإنهاء الزيارة"}
++            </button>
++            <button type="button" className="btn btn-outline" onClick={onClose}>
++              إلغاء
++            </button>
++          </div>
++        </form>
++      </div>
++    </div>
++  );
++}
++
++function DoctorAppointments() {
++  const [appointments, setAppointments] = useState([]);
++  const [tab, setTab] = useState("UPCOMING");
++  const [message, setMessage] = useState("");
++  const [error, setError] = useState("");
++  const [completeTarget, setCompleteTarget] = useState(null);
++
++  async function fetchAppointments() {
++    try {
++      const response = await api.get("/appointments/doctor");
++      setAppointments(response.data);
++    } catch (err) {
++      console.log(err);
++    }
++  }
++
++  useEffect(() => {
++    fetchAppointments();
++  }, []);
++
++  async function handleConfirm(id) {
++    setMessage("");
++    setError("");
++    try {
++      await api.patch(`/appointments/${id}/confirm`);
++      setMessage("تم تأكيد الموعد.");
++      fetchAppointments();
++    } catch (err) {
++      setError(err.response?.data?.message || "حصل خطأ أثناء التأكيد");
++    }
++  }
++
++  const sorted = [...appointments].sort(
++    (a, b) => new Date(a.slot.startTime) - new Date(b.slot.startTime)
++  );
++
++  const filtered = sorted.filter((a) =>
++    tab === "UPCOMING"
++      ? a.status === "PENDING" || a.status === "CONFIRMED"
++      : tab === "COMPLETED"
++      ? a.status === "COMPLETED"
++      : a.status === "CANCELLED"
++  );
++
++  return (
++    <div className="page">
++      <div className="page-head">
++        <h1>مواعيدي</h1>
++        <p className="subtitle">أكّد المواعيد الجديدة، وسجّل التشخيص والروشتة بعد كل زيارة.</p>
++      </div>
++
++      {message && <div className="alert alert-success">{message}</div>}
++      {error && <div className="alert alert-error">{error}</div>}
++
++      <div className="tabs">
++        <button className={tab === "UPCOMING" ? "tab active" : "tab"} onClick={() => setTab("UPCOMING")}>
++          القادمة
++        </button>
++        <button className={tab === "COMPLETED" ? "tab active" : "tab"} onClick={() => setTab("COMPLETED")}>
++          المكتملة
++        </button>
++        <button className={tab === "CANCELLED" ? "tab active" : "tab"} onClick={() => setTab("CANCELLED")}>
++          الملغاة
++        </button>
++      </div>
++
++      {filtered.length === 0 ? (
++        <div className="empty-state">مفيش مواعيد في هذا القسم.</div>
++      ) : (
++        <div className="stack">
++          {filtered.map((appt) => (
++            <div key={appt.id} className="card">
++              <div className="row between wrap">
++                <div className="row">
++                  <div className="doctor-avatar">{(appt.patient.fullName || "م")[0]}</div>
++                  <div>
++                    <h3 style={{ marginBottom: 2 }}>{appt.patient.fullName}</h3>
++                    <span className="muted" style={{ fontSize: 14 }}>
++                      {new Date(appt.slot.startTime).toLocaleString("ar-EG", {
++                        weekday: "long",
++                        year: "numeric",
++                        month: "long",
++                        day: "numeric",
++                        hour: "2-digit",
++                        minute: "2-digit",
++                      })}
++                    </span>
++                  </div>
++                </div>
++                <div className="row">
++                  <StatusBadge status={appt.status} />
++                  {appt.status === "PENDING" && (
++                    <button className="btn btn-primary btn-sm" onClick={() => handleConfirm(appt.id)}>
++                      تأكيد
++                    </button>
++                  )}
++                  {appt.status === "CONFIRMED" && (
++                    <button className="btn btn-accent btn-sm" onClick={() => setCompleteTarget(appt)}>
++                      إنهاء الزيارة
++                    </button>
++                  )}
++                </div>
++              </div>
++            </div>
++          ))}
++        </div>
++      )}
++
++      {completeTarget && (
++        <CompleteVisitModal
++          appointment={completeTarget}
++          onClose={() => setCompleteTarget(null)}
++          onDone={() => {
++            setCompleteTarget(null);
++            setMessage("تم حفظ الزيارة وإنهاؤها بنجاح ✅");
++            fetchAppointments();
++          }}
++        />
++      )}
++    </div>
++  );
++}
++
++export default DoctorAppointments;
+diff --git a/frontend/src/pages/Home.jsx b/frontend/src/pages/Home.jsx
+index 75abcd6..732df84 100644
+--- a/frontend/src/pages/Home.jsx
++++ b/frontend/src/pages/Home.jsx
+@@ -1,7 +1,84 @@
++import { useContext } from "react";
++import { Link } from "react-router-dom";
++import { AuthContext } from "../context/AuthContext";
++
++function PatientHome({ user }) {
++  return (
++    <>
++      <div className="page-head">
++        <h1>أهلاً بيك، {user.fullName || user.email} 👋</h1>
++        <p className="subtitle">من هنا تقدر تحجز موعد، تتابع مواعيدك، وتشوف سجلك الطبي.</p>
++      </div>
++      <div className="grid grid-3">
++        <Link to="/book" className="card">
++          <h3>احجز موعد جديد</h3>
++          <p className="muted">اختار الدكتور المناسب وواعد فاضي.</p>
++        </Link>
++        <Link to="/my-appointments" className="card">
++          <h3>مواعيدي</h3>
++          <p className="muted">تابع حالة مواعيدك وألغيها لو محتاج.</p>
++        </Link>
++        <Link to="/my-records" className="card">
++          <h3>سجلي الطبي</h3>
++          <p className="muted">شوف التشخيصات والروشتات اللي اتكتبتلك.</p>
++        </Link>
++      </div>
++    </>
++  );
++}
++
++function DoctorHome({ user }) {
++  return (
++    <>
++      <div className="page-head">
++        <h1>أهلاً د. {user.fullName || user.email} 👋</h1>
++        <p className="subtitle">تابع مواعيدك، جهّز جدولك الأسبوعي، وأضف مواعيد فاضية.</p>
++      </div>
++      <div className="grid grid-3">
++        <Link to="/doctor-appointments" className="card">
++          <h3>مواعيدي</h3>
++          <p className="muted">أكّد أو أكمل مواعيد المرضى.</p>
++        </Link>
++        <Link to="/weekly-schedule" className="card">
++          <h3>الجدول الأسبوعي</h3>
++          <p className="muted">حدّد أيام وساعات شغلك الأسبوعية.</p>
++        </Link>
++        <Link to="/create-slots" className="card">
++          <h3>إضافة مواعيد</h3>
++          <p className="muted">أضف مواعيد فاضية ليوم معين بسرعة.</p>
++        </Link>
++      </div>
++    </>
++  );
++}
++
++function AdminHome({ user }) {
++  return (
++    <>
++      <div className="page-head">
++        <h1>أهلاً بيك في لوحة التحكم</h1>
++        <p className="subtitle">تقدر من هنا تضيف حسابات دكاترة جداد للعيادة.</p>
++      </div>
++      <div className="grid grid-3">
++        <Link to="/admin" className="card">
++          <h3>إضافة دكتور</h3>
++          <p className="muted">أنشئ حساب دكتور جديد ببياناته وتخصصه.</p>
++        </Link>
++      </div>
++    </>
++  );
++}
++
+ function Home() {
++  const { user } = useContext(AuthContext);
++
+   return (
+-    <h1>Home Page</h1>
++    <div className="page">
++      {user?.role === "DOCTOR" && <DoctorHome user={user} />}
++      {user?.role === "ADMIN" && <AdminHome user={user} />}
++      {(!user || user.role === "PATIENT") && user && <PatientHome user={user} />}
++    </div>
+   );
+ }
+ 
+-export default Home;
+\ No newline at end of file
++export default Home;
+diff --git a/frontend/src/pages/Login.jsx b/frontend/src/pages/Login.jsx
+index 2f220c9..9ac3720 100644
+--- a/frontend/src/pages/Login.jsx
++++ b/frontend/src/pages/Login.jsx
+@@ -1,42 +1,74 @@
+-import { useState,useContext } from "react";
+-import { useNavigate } from "react-router-dom";
++import { useState, useContext } from "react";
++import { useNavigate, Link } from "react-router-dom";
+ import api from "../api/axios";
+ import { AuthContext } from "../context/AuthContext";
+ 
+-function Login(){
+-    const [email,setEmail] = useState("")
+-    const [password , setPassword] =useState("")
+-    const { setUser } = useContext(AuthContext);
+-    const navigate = useNavigate();
++function Login() {
++  const [email, setEmail] = useState("");
++  const [password, setPassword] = useState("");
++  const [error, setError] = useState("");
++  const [loading, setLoading] = useState(false);
++  const { setUser } = useContext(AuthContext);
++  const navigate = useNavigate();
+ 
+-async function handleSubmit(e) {
+-    e.preventDefault();   
+-    try {const response = await api.post("/auth/login", { email, password });
+-
+-    localStorage.setItem("token", response.data.access_token);
++  async function handleSubmit(e) {
++    e.preventDefault();
++    setError("");
++    setLoading(true);
++    try {
++      const response = await api.post("/auth/login", { email, password });
++      localStorage.setItem("token", response.data.access_token);
+       setUser(response.data.user);
+       navigate("/");
+-    } catch (error) {
+-      console.log(error);
++    } catch (err) {
++      setError(err.response?.data?.message || "بيانات الدخول غير صحيحة");
++    } finally {
++      setLoading(false);
+     }
+   }
+ 
+-return(
+-<form onSubmit={handleSubmit}>
+-<input
+-type="email"
+-placeholder="Email"
+-value={email}
+-onChange={(e) =>setEmail(e.target.value)}
+-/>
+-<input
+-type="password"
+-placeholder="Password"
+-value={password}
+-onChange={(e) => setPassword (e.target.value)}
+-/>
+-<button type="submit">Login</button>
+-</form>
+-);
++  return (
++    <div className="page">
++      <div className="card form-card">
++        <div className="page-head center">
++          <h1>تسجيل الدخول</h1>
++          <p className="subtitle">اهلاً بيك تاني، ادخل بياناتك عشان تكمل</p>
++        </div>
++
++        {error && <div className="alert alert-error">{error}</div>}
++
++        <form onSubmit={handleSubmit}>
++          <div className="field">
++            <label>البريد الإلكتروني</label>
++            <input
++              type="email"
++              placeholder="example@mail.com"
++              value={email}
++              onChange={(e) => setEmail(e.target.value)}
++              required
++            />
++          </div>
++          <div className="field">
++            <label>كلمة المرور</label>
++            <input
++              type="password"
++              placeholder="••••••••"
++              value={password}
++              onChange={(e) => setPassword(e.target.value)}
++              required
++            />
++          </div>
++          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
++            {loading ? "جاري الدخول..." : "دخول"}
++          </button>
++        </form>
++
++        <p className="center muted" style={{ marginTop: 16 }}>
++          مالكش حساب؟ <Link to="/register">اعمل حساب جديد</Link>
++        </p>
++      </div>
++    </div>
++  );
+ }
+-export default Login;
+\ No newline at end of file
++
++export default Login;
+diff --git a/frontend/src/pages/MyAppointments.jsx b/frontend/src/pages/MyAppointments.jsx
+index 8785aac..9d06d1b 100644
+--- a/frontend/src/pages/MyAppointments.jsx
++++ b/frontend/src/pages/MyAppointments.jsx
+@@ -1,16 +1,101 @@
+ import { useState, useEffect } from "react";
+ import api from "../api/axios";
++import StatusBadge from "../components/StatusBadge";
++
++function ReviewModal({ appointment, onClose, onSubmitted }) {
++  const [rating, setRating] = useState(5);
++  const [comment, setComment] = useState("");
++  const [isAnonymous, setIsAnonymous] = useState(false);
++  const [error, setError] = useState("");
++  const [submitting, setSubmitting] = useState(false);
++
++  async function handleSubmit(e) {
++    e.preventDefault();
++    setError("");
++    if (comment.trim().length < 10) {
++      setError("التعليق لازم يكون 10 أحرف على الأقل");
++      return;
++    }
++    setSubmitting(true);
++    try {
++      await api.post("/reviews", {
++        appointmentId: appointment.id,
++        rating,
++        comment,
++        isAnonymous,
++      });
++      onSubmitted();
++    } catch (err) {
++      setError(err.response?.data?.message || "حصل خطأ أثناء إرسال التقييم");
++    } finally {
++      setSubmitting(false);
++    }
++  }
++
++  return (
++    <div className="modal-overlay" onClick={onClose}>
++      <div className="modal" onClick={(e) => e.stopPropagation()}>
++        <h2>قيّم زيارتك مع د. {appointment.doctor.fullName}</h2>
++        {error && <div className="alert alert-error">{error}</div>}
++        <form onSubmit={handleSubmit}>
++          <div className="field">
++            <label>التقييم</label>
++            <div className="star-rating">
++              {[1, 2, 3, 4, 5].map((n) => (
++                <span
++                  key={n}
++                  className={n <= rating ? "filled" : ""}
++                  onClick={() => setRating(n)}
++                >
++                  ★
++                </span>
++              ))}
++            </div>
++          </div>
++          <div className="field">
++            <label>تعليقك</label>
++            <textarea
++              placeholder="اكتب رأيك في الدكتور والزيارة..."
++              value={comment}
++              onChange={(e) => setComment(e.target.value)}
++            />
++          </div>
++          <div className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
++            <input
++              type="checkbox"
++              id="anon"
++              checked={isAnonymous}
++              onChange={(e) => setIsAnonymous(e.target.checked)}
++              style={{ width: "auto" }}
++            />
++            <label htmlFor="anon" style={{ marginBottom: 0 }}>إرسال التقييم بدون اسمي</label>
++          </div>
++          <div className="row" style={{ marginTop: 10 }}>
++            <button type="submit" className="btn btn-primary" disabled={submitting}>
++              {submitting ? "جاري الإرسال..." : "إرسال التقييم"}
++            </button>
++            <button type="button" className="btn btn-outline" onClick={onClose}>
++              إلغاء
++            </button>
++          </div>
++        </form>
++      </div>
++    </div>
++  );
++}
+ 
+ function MyAppointments() {
+   const [appointments, setAppointments] = useState([]);
+   const [message, setMessage] = useState("");
++  const [error, setError] = useState("");
++  const [reviewTarget, setReviewTarget] = useState(null);
+ 
+   async function fetchAppointments() {
+     try {
+       const response = await api.get("/appointments/patient");
+       setAppointments(response.data);
+-    } catch (error) {
+-      console.log(error);
++    } catch (err) {
++      console.log(err);
+     }
+   }
+ 
+@@ -20,36 +105,84 @@ function MyAppointments() {
+ 
+   async function handleCancel(appointmentId) {
+     setMessage("");
++    setError("");
+     try {
+       await api.patch(`/appointments/${appointmentId}/cancel`);
+-      setMessage("Appointment cancelled.");
++      setMessage("تم إلغاء الموعد.");
+       fetchAppointments();
+-    } catch (error) {
+-      setMessage(error.response?.data?.message || "Something went wrong");
++    } catch (err) {
++      setError(err.response?.data?.message || "حصل خطأ أثناء الإلغاء");
+     }
+   }
+ 
++  const sorted = [...appointments].sort(
++    (a, b) => new Date(b.slot.startTime) - new Date(a.slot.startTime)
++  );
++
+   return (
+-    <div>
+-      <h1>My Appointments</h1>
+-      {message && <p>{message}</p>}
++    <div className="page">
++      <div className="page-head">
++        <h1>مواعيدي</h1>
++        <p className="subtitle">تابع كل مواعيدك الحالية والسابقة من هنا.</p>
++      </div>
++
++      {message && <div className="alert alert-success">{message}</div>}
++      {error && <div className="alert alert-error">{error}</div>}
+ 
+-      {appointments.length === 0 ? (
+-        <p>You have no appointments yet.</p>
++      {sorted.length === 0 ? (
++        <div className="empty-state">مفيش مواعيد محجوزة لسه.</div>
+       ) : (
+-        appointments.map((appt) => (
+-          <div key={appt.id}>
+-            <p>Doctor: {appt.doctor.fullName}</p>
+-            <p>Date: {new Date(appt.slot.startTime).toLocaleString()}</p>
+-            <p>Status: {appt.status}</p>
+-            {appt.status !== "CANCELLED" && appt.status !== "COMPLETED" && (
+-              <button onClick={() => handleCancel(appt.id)}>Cancel</button>
+-            )}
+-          </div>
+-        ))
++        <div className="stack">
++          {sorted.map((appt) => (
++            <div key={appt.id} className="card">
++              <div className="row between wrap">
++                <div className="row">
++                  <div className="doctor-avatar">{(appt.doctor.fullName || "د")[0]}</div>
++                  <div>
++                    <h3 style={{ marginBottom: 2 }}>د. {appt.doctor.fullName}</h3>
++                    <span className="muted" style={{ fontSize: 14 }}>
++                      {new Date(appt.slot.startTime).toLocaleString("ar-EG", {
++                        weekday: "long",
++                        year: "numeric",
++                        month: "long",
++                        day: "numeric",
++                        hour: "2-digit",
++                        minute: "2-digit",
++                      })}
++                    </span>
++                  </div>
++                </div>
++                <div className="row">
++                  <StatusBadge status={appt.status} />
++                  {appt.status !== "CANCELLED" && appt.status !== "COMPLETED" && (
++                    <button className="btn btn-danger btn-sm" onClick={() => handleCancel(appt.id)}>
++                      إلغاء
++                    </button>
++                  )}
++                  {appt.status === "COMPLETED" && (
++                    <button className="btn btn-accent btn-sm" onClick={() => setReviewTarget(appt)}>
++                      قيّم الزيارة
++                    </button>
++                  )}
++                </div>
++              </div>
++            </div>
++          ))}
++        </div>
++      )}
++
++      {reviewTarget && (
++        <ReviewModal
++          appointment={reviewTarget}
++          onClose={() => setReviewTarget(null)}
++          onSubmitted={() => {
++            setReviewTarget(null);
++            setMessage("شكرًا لتقييمك ✨");
++          }}
++        />
+       )}
+     </div>
+   );
+ }
+ 
+-export default MyAppointments;
+\ No newline at end of file
++export default MyAppointments;
+diff --git a/frontend/src/pages/MyMedicalRecords.jsx b/frontend/src/pages/MyMedicalRecords.jsx
+new file mode 100644
+index 0000000..b856a03
+--- /dev/null
++++ b/frontend/src/pages/MyMedicalRecords.jsx
+@@ -0,0 +1,95 @@
++import { useState, useEffect } from "react";
++import api from "../api/axios";
++
++function MyMedicalRecords() {
++  const [records, setRecords] = useState([]);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState("");
++
++  useEffect(() => {
++    async function fetchRecords() {
++      try {
++        const response = await api.get("/medical-records/my-records");
++        setRecords(response.data);
++      } catch (err) {
++        setError(err.response?.data?.message || "تعذر تحميل السجل الطبي");
++      } finally {
++        setLoading(false);
++      }
++    }
++    fetchRecords();
++  }, []);
++
++  return (
++    <div className="page">
++      <div className="page-head">
++        <h1>سجلي الطبي</h1>
++        <p className="subtitle">كل التشخيصات والروشتات اللي كتبها لك الدكاترة بعد كل زيارة.</p>
++      </div>
++
++      {error && <div className="alert alert-error">{error}</div>}
++
++      {loading ? (
++        <p className="muted">جاري التحميل...</p>
++      ) : records.length === 0 ? (
++        <div className="empty-state">مفيش سجلات طبية لسه.</div>
++      ) : (
++        <div className="stack">
++          {records.map((record) => (
++            <div key={record.id} className="card">
++              <div className="row between wrap" style={{ marginBottom: 10 }}>
++                <div>
++                  <h3 style={{ marginBottom: 2 }}>{record.diagnosis}</h3>
++                  <span className="muted" style={{ fontSize: 13.5 }}>
++                    د. {record.doctor?.fullName} —{" "}
++                    {new Date(record.createdAt).toLocaleDateString("ar-EG", {
++                      year: "numeric",
++                      month: "long",
++                      day: "numeric",
++                    })}
++                  </span>
++                </div>
++              </div>
++
++              {record.notes && (
++                <p style={{ marginBottom: 8 }}>
++                  <strong>ملاحظات: </strong>
++                  {record.notes}
++                </p>
++              )}
++              {record.additionalInstructions && (
++                <p style={{ marginBottom: 8 }}>
++                  <strong>تعليمات إضافية: </strong>
++                  {record.additionalInstructions}
++                </p>
++              )}
++
++              {record.prescriptions?.length > 0 && (
++                <div style={{ marginTop: 12 }}>
++                  <strong style={{ fontSize: 14, color: "var(--teal-900)" }}>الروشتة:</strong>
++                  <div className="stack" style={{ marginTop: 8 }}>
++                    {record.prescriptions.map((rx) => (
++                      <div key={rx.id} className="rx-row" style={{ gridTemplateColumns: "1fr" }}>
++                        <div className="row wrap between">
++                          <strong>{rx.medicineName}</strong>
++                          <span className="muted" style={{ fontSize: 13.5 }}>
++                            {rx.dosage} — {rx.frequency} — لمدة {rx.duration}
++                          </span>
++                        </div>
++                        {rx.instructions && (
++                          <span className="muted" style={{ fontSize: 13 }}>{rx.instructions}</span>
++                        )}
++                      </div>
++                    ))}
++                  </div>
++                </div>
++              )}
++            </div>
++          ))}
++        </div>
++      )}
++    </div>
++  );
++}
++
++export default MyMedicalRecords;
+diff --git a/frontend/src/pages/Register.jsx b/frontend/src/pages/Register.jsx
+index 5df2f3b..5bdb57a 100644
+--- a/frontend/src/pages/Register.jsx
++++ b/frontend/src/pages/Register.jsx
+@@ -1,48 +1,143 @@
+-import { useState,useContext } from "react";
+-import { useNavigate } from "react-router-dom";
++import { useState } from "react";
++import { useNavigate, Link } from "react-router-dom";
+ import api from "../api/axios";
+-import { AuthContext } from "../context/AuthContext";
+ 
+-function Register(){
++function Register() {
++  const [email, setEmail] = useState("");
++  const [password, setPassword] = useState("");
++  const [fullName, setFullName] = useState("");
++  const [phone, setPhone] = useState("");
++  const [gender, setGender] = useState("");
++  const [birthDate, setBirthDate] = useState("");
++  const [address, setAddress] = useState("");
++  const [error, setError] = useState("");
++  const [success, setSuccess] = useState(false);
++  const [loading, setLoading] = useState(false);
++  const navigate = useNavigate();
+ 
+-    const [email,setEmail] = useState("")
+-    const [password , setPassword] =useState("")
+-    const [fullName, setFullName] = useState("");
+-    const navigate = useNavigate();
++  async function handleRegister(e) {
++    e.preventDefault();
++    setError("");
++    setLoading(true);
++    try {
++      await api.post("/auth/register", {
++        email,
++        password,
++        fullName,
++        phone: phone || undefined,
++        gender: gender || undefined,
++        birthDate: birthDate || undefined,
++        address: address || undefined,
++      });
++      setSuccess(true);
++      setTimeout(() => navigate("/login"), 1200);
++    } catch (err) {
++      setError(err.response?.data?.message || "حصل خطأ أثناء إنشاء الحساب");
++    } finally {
++      setLoading(false);
++    }
++  }
+ 
+-    async function handleRegister (e){
+-     e.preventDefault();  
+-try {const response = await api.post("/auth/register", { email, password ,fullName });
++  return (
++    <div className="page">
++      <div className="card form-card wide">
++        <div className="page-head center">
++          <h1>إنشاء حساب مريض</h1>
++          <p className="subtitle">سجل بياناتك عشان تقدر تحجز مواعيدك بسهولة</p>
++        </div>
++
++        {error && <div className="alert alert-error">{error}</div>}
++        {success && (
++          <div className="alert alert-success">تم إنشاء الحساب بنجاح، جاري تحويلك لتسجيل الدخول...</div>
++        )}
+ 
+-      navigate("/login");
+-    } catch (error) {
+-      console.log(error);
+-    }
+-    }
+-    return(
+         <form onSubmit={handleRegister}>
+-<input
+-type="email"
+-placeholder="Email"
+-value={email}
+-onChange={(e) =>setEmail(e.target.value)}
+-/>
+-<input
+-type="password"
+-placeholder="Password"
+-value={password}
+-onChange={(e) => setPassword (e.target.value)}
+-/>
+-<input
+-  type="text"
+-  placeholder="Full Name"
+-  value={fullName}
+-  onChange={(e) => setFullName(e.target.value)}
+-/>
+-
+-<button type="submit">register</button>
+-</form>
+-
+-    );
++          <div className="form-grid">
++            <div className="field">
++              <label>الاسم بالكامل *</label>
++              <input
++                type="text"
++                placeholder="أحمد محمد"
++                value={fullName}
++                onChange={(e) => setFullName(e.target.value)}
++                required
++              />
++            </div>
++            <div className="field">
++              <label>البريد الإلكتروني *</label>
++              <input
++                type="email"
++                placeholder="example@mail.com"
++                value={email}
++                onChange={(e) => setEmail(e.target.value)}
++                required
++              />
++            </div>
++          </div>
++
++          <div className="form-grid">
++            <div className="field">
++              <label>كلمة المرور *</label>
++              <input
++                type="password"
++                placeholder="6 أحرف على الأقل"
++                value={password}
++                onChange={(e) => setPassword(e.target.value)}
++                minLength={6}
++                required
++              />
++            </div>
++            <div className="field">
++              <label>رقم الهاتف</label>
++              <input
++                type="text"
++                placeholder="01012345678"
++                value={phone}
++                onChange={(e) => setPhone(e.target.value)}
++              />
++            </div>
++          </div>
++
++          <div className="form-grid">
++            <div className="field">
++              <label>النوع</label>
++              <select value={gender} onChange={(e) => setGender(e.target.value)}>
++                <option value="">اختر</option>
++                <option value="MALE">ذكر</option>
++                <option value="FEMALE">أنثى</option>
++              </select>
++            </div>
++            <div className="field">
++              <label>تاريخ الميلاد</label>
++              <input
++                type="date"
++                value={birthDate}
++                onChange={(e) => setBirthDate(e.target.value)}
++              />
++            </div>
++          </div>
++
++          <div className="field">
++            <label>العنوان</label>
++            <input
++              type="text"
++              placeholder="القاهرة، مصر"
++              value={address}
++              onChange={(e) => setAddress(e.target.value)}
++            />
++          </div>
++
++          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
++            {loading ? "جاري الإنشاء..." : "إنشاء الحساب"}
++          </button>
++        </form>
++
++        <p className="center muted" style={{ marginTop: 16 }}>
++          عندك حساب بالفعل؟ <Link to="/login">سجل دخولك</Link>
++        </p>
++      </div>
++    </div>
++  );
+ }
+-export default Register
+\ No newline at end of file
++
++export default Register;
+diff --git a/frontend/src/pages/WeeklySchedule.jsx b/frontend/src/pages/WeeklySchedule.jsx
+index 0ac4b1f..bd1bcbd 100644
+--- a/frontend/src/pages/WeeklySchedule.jsx
++++ b/frontend/src/pages/WeeklySchedule.jsx
+@@ -2,13 +2,13 @@ import { useState, useEffect } from "react";
+ import api from "../api/axios";
+ 
+ const DAYS = [
+-  "Sunday",
+-  "Monday",
+-  "Tuesday",
+-  "Wednesday",
+-  "Thursday",
+-  "Friday",
+-  "Saturday",
++  "الأحد",
++  "الاثنين",
++  "الثلاثاء",
++  "الأربعاء",
++  "الخميس",
++  "الجمعة",
++  "السبت",
+ ];
+ 
+ function WeeklySchedule() {
+@@ -19,13 +19,14 @@ function WeeklySchedule() {
+   const [duration, setDuration] = useState("30");
+   const [leaveDate, setLeaveDate] = useState("");
+   const [message, setMessage] = useState("");
++  const [error, setError] = useState("");
+ 
+   async function fetchTemplate() {
+     try {
+       const response = await api.get("/appointments/weekly-template");
+       setTemplate(response.data);
+-    } catch (error) {
+-      console.log(error);
++    } catch (err) {
++      console.log(err);
+     }
+   }
+ 
+@@ -33,119 +34,168 @@ function WeeklySchedule() {
+     fetchTemplate();
+   }, []);
+ 
+-  async function handleSaveDay(e) {
+-    e.preventDefault();
++  function showResult(promise, successMsg) {
+     setMessage("");
++    setError("");
++    return promise
++      .then(() => setMessage(successMsg))
++      .catch((err) => setError(err.response?.data?.message || "حصل خطأ، حاول تاني"));
++  }
+ 
+-    try {
+-      await api.post("/appointments/weekly-template", {
++  async function handleSaveDay(e) {
++    e.preventDefault();
++    await showResult(
++      api.post("/appointments/weekly-template", {
+         dayOfWeek: Number(dayOfWeek),
+         startHour: Number(startHour),
+         endHour: Number(endHour),
+         duration: Number(duration),
+-      });
+-      setMessage("Day saved successfully!");
+-      fetchTemplate();
+-    } catch (error) {
+-      setMessage(error.response?.data?.message || "Something went wrong");
+-    }
++      }),
++      "تم حفظ اليوم بنجاح."
++    );
++    fetchTemplate();
+   }
+ 
+   async function handleAddLeave(e) {
+     e.preventDefault();
+-    setMessage("");
+-
+-    try {
+-      await api.post("/appointments/leaves", { date: leaveDate });
+-      setMessage("Leave added successfully!");
+-      setLeaveDate("");
+-    } catch (error) {
+-      setMessage(error.response?.data?.message || "Something went wrong");
+-    }
++    await showResult(
++      api.post("/appointments/leaves", { date: leaveDate }),
++      "تم إضافة يوم الإجازة."
++    );
++    setLeaveDate("");
+   }
+ 
+   async function handleGenerateWeek() {
+     setMessage("");
+-
++    setError("");
+     try {
+       const response = await api.post("/appointments/generate-week");
+       setMessage(
+-        `Created ${response.data.totalCreated} slots. Skipped: ${response.data.skippedDays.join(", ") || "none"}`
++        `تم إنشاء ${response.data.totalCreated} موعد. الأيام المتخطاة: ${
++          response.data.skippedDays.join("، ") || "لا يوجد"
++        }`
+       );
+-    } catch (error) {
+-      setMessage(error.response?.data?.message || "Something went wrong");
++    } catch (err) {
++      setError(err.response?.data?.message || "حصل خطأ، حاول تاني");
+     }
+   }
++
+   function handleSelectDay(day) {
+-  setDayOfWeek(String(day.dayOfWeek));
+-  setStartHour(String(day.startHour));
+-  setEndHour(String(day.endHour));
+-  setDuration(String(day.duration));
+-}
++    setDayOfWeek(String(day.dayOfWeek));
++    setStartHour(String(day.startHour));
++    setEndHour(String(day.endHour));
++    setDuration(String(day.duration));
++  }
+ 
+   return (
+-    <div>
+-      <h1>Weekly Schedule</h1>
+-
+-      <h2>Current Schedule</h2>
+-      {template.length === 0 ? (
+-  <p>No days set yet.</p>
+-) : (
+-  template.map((day) => (
+-    <div key={day.id}>
+-      <span>
+-        {DAYS[day.dayOfWeek]}: {day.startHour}:00 - {day.endHour}:00 ({day.duration} min)
+-      </span>
+-      <button onClick={() => handleSelectDay(day)}>Select</button>
+-    </div>
+-  ))
+-)}
+-<h2>Set/Update a Day</h2>
+-      <form onSubmit={handleSaveDay}>
+-        <select value={dayOfWeek} onChange={(e) => setDayOfWeek(e.target.value)}>
+-          {DAYS.map((name, index) => (
+-            <option key={index} value={index}>
+-              {name}
+-            </option>
+-          ))}
+-        </select>
+-        <input
+-          type="number"
+-          placeholder="Start Hour"
+-          value={startHour}
+-          onChange={(e) => setStartHour(e.target.value)}
+-        />
+-        <input
+-          type="number"
+-          placeholder="End Hour"
+-          value={endHour}
+-          onChange={(e) => setEndHour(e.target.value)}
+-        />
+-        <input
+-          type="number"
+-          placeholder="Duration (minutes)"
+-          value={duration}
+-          onChange={(e) => setDuration(e.target.value)}
+-        />
+-        <button type="submit">Save Day</button>
+-      </form>
+-
+-      <h2>Add a Leave Day</h2>
+-      <form onSubmit={handleAddLeave}>
+-        <input
+-          type="date"
+-          value={leaveDate}
+-          onChange={(e) => setLeaveDate(e.target.value)}
+-        />
+-        <button type="submit">Add Leave</button>
+-      </form>
+-
+-      <h2>Generate Next Week</h2>
+-      <button onClick={handleGenerateWeek}>Generate Week</button>
+-
+-      {message && <p>{message}</p>}
++    <div className="page">
++      <div className="page-head">
++        <h1>الجدول الأسبوعي</h1>
++        <p className="subtitle">حدد أيام وساعات شغلك الأسبوعية، وولّد مواعيد الأسبوع الجاي بضغطة واحدة.</p>
++      </div>
++
++      {message && <div className="alert alert-success">{message}</div>}
++      {error && <div className="alert alert-error">{error}</div>}
++
++      <div className="section">
++        <h2>الجدول الحالي</h2>
++        {template.length === 0 ? (
++          <div className="empty-state">لسه ماحددتش أي أيام.</div>
++        ) : (
++          <div className="stack">
++            {template.map((day) => (
++              <div key={day.id} className="card-row">
++                <span>
++                  {DAYS[day.dayOfWeek]}: {day.startHour}:00 - {day.endHour}:00 ({day.duration} دقيقة)
++                </span>
++                <button className="btn btn-outline btn-sm" onClick={() => handleSelectDay(day)}>
++                  تعديل
++                </button>
++              </div>
++            ))}
++          </div>
++        )}
++      </div>
++
++      <div className="grid grid-2 section">
++        <div className="card">
++          <h2>تحديد / تعديل يوم</h2>
++          <form onSubmit={handleSaveDay}>
++            <div className="field">
++              <label>اليوم</label>
++              <select value={dayOfWeek} onChange={(e) => setDayOfWeek(e.target.value)}>
++                {DAYS.map((name, index) => (
++                  <option key={index} value={index}>
++                    {name}
++                  </option>
++                ))}
++              </select>
++            </div>
++            <div className="form-grid">
++              <div className="field">
++                <label>من الساعة</label>
++                <input
++                  type="number"
++                  value={startHour}
++                  onChange={(e) => setStartHour(e.target.value)}
++                  required
++                />
++              </div>
++              <div className="field">
++                <label>إلى الساعة</label>
++                <input
++                  type="number"
++                  value={endHour}
++                  onChange={(e) => setEndHour(e.target.value)}
++                  required
++                />
++              </div>
++            </div>
++            <div className="field">
++              <label>مدة الموعد (دقايق)</label>
++              <input
++                type="number"
++                value={duration}
++                onChange={(e) => setDuration(e.target.value)}
++                required
++              />
++            </div>
++            <button type="submit" className="btn btn-primary btn-block">
++              حفظ اليوم
++            </button>
++          </form>
++        </div>
++
++        <div className="card">
++          <h2>إضافة يوم إجازة</h2>
++          <form onSubmit={handleAddLeave}>
++            <div className="field">
++              <label>التاريخ</label>
++              <input
++                type="date"
++                value={leaveDate}
++                onChange={(e) => setLeaveDate(e.target.value)}
++                required
++              />
++            </div>
++            <button type="submit" className="btn btn-outline btn-block">
++              إضافة إجازة
++            </button>
++          </form>
++
++          <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--border)" }}>
++            <h2>توليد مواعيد الأسبوع القادم</h2>
++            <p className="muted" style={{ marginBottom: 12, fontSize: 14 }}>
++              هيتم إنشاء المواعيد تلقائيًا حسب جدولك الأسبوعي، ومراعاة أيام الإجازة.
++            </p>
++            <button className="btn btn-accent btn-block" onClick={handleGenerateWeek}>
++              توليد الأسبوع
++            </button>
++          </div>
++        </div>
++      </div>
+     </div>
+   );
+ }
+ 
+-export default WeeklySchedule;
+\ No newline at end of file
++export default WeeklySchedule;
+-- 
+2.43.0
+
