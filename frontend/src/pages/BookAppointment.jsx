@@ -5,6 +5,7 @@ function BookAppointment() {
   const [doctors, setDoctors] = useState([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState(null);
   const [slots, setSlots] = useState([]);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     async function fetchDoctors() {
@@ -44,13 +45,26 @@ function BookAppointment() {
       ))}
 
       <h2>Available Slots</h2>
+      {message && <p>{message}</p>}
       {slots.map((slot) => (
         <div key={slot.id}>
-           <p>{new Date(slot.startTime).toLocaleString()}</p>
+          <span>{new Date(slot.startTime).toLocaleString()}</span>
+          <button onClick={() => handleBook(slot.id)}>Book</button>
         </div>
       ))}
     </div>
   );
+  async function handleBook(slotId) {
+    setMessage("");
+    try {
+      await api.post("/appointments", { slotId });
+      setMessage("Appointment booked successfully!");
+      const response = await api.get(`/appointments/doctor/${selectedDoctorId}/slots`);
+      setSlots(response.data);
+    } catch (error) {
+      setMessage(error.response?.data?.message || "Something went wrong");
+    }
+  }
 }
 
 export default BookAppointment;

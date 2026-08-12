@@ -7,6 +7,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import BookAppointment from "./pages/BookAppointment";
 import CreateSlots from "./pages/CreateSlots";
 import WeeklySchedule from "./pages/WeeklySchedule";
+import MyAppointments from "./pages/MyAppointments";
 
 function App(){
   return(
@@ -19,6 +20,7 @@ function App(){
       <Route path="/login" element={<Login/>} />
       <Route path="/create-slots"element={<ProtectedRoute allowedRoles={["DOCTOR"]}><CreateSlots /></ProtectedRoute>}/>
       <Route path="/weekly-schedule"element={<ProtectedRoute allowedRoles={["DOCTOR"]}><WeeklySchedule /></ProtectedRoute>}/>
+      <Route path="/my-appointments"element={<ProtectedRoute allowedRoles={["PATIENT"]}><MyAppointments /></ProtectedRoute>}/>
     </Routes>
   </BrowserRouter>
 );
