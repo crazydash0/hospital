@@ -233,6 +233,15 @@ export class ReviewsService {
     if (currentUser.role !== Role.DOCTOR) {
       throw new ForbiddenException('Only doctors can reply to reviews');
     }
+
+    const moderation = await this.moderation.moderate(dto.reply);
+
+    if (moderation.action === ModerationAction.REJECT) {
+      throw new BadRequestException(
+        'ردك يحتوي على ألفاظ غير لائقة، من فضلك أعد صياغته.',
+      );
+    }
+
     return this.prisma.review.update({
       where: {
         id: reviewId,

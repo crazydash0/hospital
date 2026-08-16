@@ -2,11 +2,10 @@ import { useState, useEffect } from "react";
 import api from "../api/axios";
 import Stars from "../components/Stars";
 
-function ReplyBox({ review, onReplied }) {
-  const [reply, setReply] = useState("");
+function ReplyBox({ review, initialValue = "", onReplied, onCancel }) {
+  const [reply, setReply] = useState(initialValue);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [open, setOpen] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -26,14 +25,6 @@ function ReplyBox({ review, onReplied }) {
     }
   }
 
-  if (!open) {
-    return (
-      <button className="btn btn-outline btn-sm" onClick={() => setOpen(true)}>
-        رد على التقييم
-      </button>
-    );
-  }
-
   return (
     <form onSubmit={handleSubmit} style={{ marginTop: 8 }}>
       {error && <div className="alert alert-error">{error}</div>}
@@ -47,11 +38,57 @@ function ReplyBox({ review, onReplied }) {
         <button type="submit" className="btn btn-primary btn-sm" disabled={submitting}>
           {submitting ? "جاري الإرسال..." : "إرسال الرد"}
         </button>
-        <button type="button" className="btn btn-outline btn-sm" onClick={() => setOpen(false)}>
+        <button type="button" className="btn btn-outline btn-sm" onClick={onCancel}>
           إلغاء
         </button>
       </div>
     </form>
+  );
+}
+
+function ReviewCard({ review, onChanged }) {
+  const [editing, setEditing] = useState(false);
+
+  return (
+    <div className="card">
+      <div className="row between wrap" style={{ marginBottom: 6 }}>
+        <strong>{review.patient.fullName || review.patient.name}</strong>
+        <Stars value={review.rating} />
+      </div>
+      <p style={{ marginBottom: 8 }}>{review.comment}</p>
+
+      {review.doctorReply && !editing ? (
+        <>
+          <div
+            style={{
+              background: "var(--teal-50)",
+              borderRadius: "var(--radius-sm)",
+              padding: "10px 12px",
+            }}
+          >
+            <strong style={{ fontSize: 13.5, color: "var(--teal-800)" }}>ردك:</strong>
+            <p style={{ fontSize: 14, marginTop: 4 }}>{review.doctorReply}</p>
+          </div>
+          <button
+            className="btn btn-outline btn-sm"
+            style={{ marginTop: 8 }}
+            onClick={() => setEditing(true)}
+          >
+            تعديل الرد
+          </button>
+        </>
+      ) : (
+        <ReplyBox
+          review={review}
+          initialValue={review.doctorReply || ""}
+          onReplied={() => {
+            setEditing(false);
+            onChanged();
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -147,28 +184,7 @@ function DoctorReviews() {
 
           <div className="stack">
             {data.reviews.map((review) => (
-              <div key={review.id} className="card">
-                <div className="row between wrap" style={{ marginBottom: 6 }}>
-                  <strong>{review.patient.fullName || review.patient.name}</strong>
-                  <Stars value={review.rating} />
-                </div>
-                <p style={{ marginBottom: 8 }}>{review.comment}</p>
-
-                {review.doctorReply ? (
-                  <div
-                    style={{
-                      background: "var(--teal-50)",
-                      borderRadius: "var(--radius-sm)",
-                      padding: "10px 12px",
-                    }}
-                  >
-                    <strong style={{ fontSize: 13.5, color: "var(--teal-800)" }}>ردك:</strong>
-                    <p style={{ fontSize: 14, marginTop: 4 }}>{review.doctorReply}</p>
-                  </div>
-                ) : (
-                  <ReplyBox review={review} onReplied={fetchReviews} />
-                )}
-              </div>
+              <ReviewCard key={review.id} review={review} onChanged={fetchReviews} />
             ))}
           </div>
         </>

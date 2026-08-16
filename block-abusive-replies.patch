@@ -1,0 +1,180 @@
+From df1c5dd3dc8a4caa40dbb9084e940f224f193694 Mon Sep 17 00:00:00 2001
+From: Claude Assistant <assistant@example.com>
+Date: Sun, 16 Aug 2026 13:49:32 +0000
+Subject: [PATCH] block offensive language in doctor replies and allow editing
+ existing replies
+
+---
+ .../services/dictionary-filter.service.ts     | 10 ++-
+ backend/src/reviews/reviews.service.ts        |  9 ++
+ frontend/src/pages/DoctorReviews.jsx          | 84 +++++++++++--------
+ 3 files changed, 66 insertions(+), 37 deletions(-)
+
+diff --git a/backend/src/common/profanity/moderation/services/dictionary-filter.service.ts b/backend/src/common/profanity/moderation/services/dictionary-filter.service.ts
+index c4e82ac..42d4006 100644
+--- a/backend/src/common/profanity/moderation/services/dictionary-filter.service.ts
++++ b/backend/src/common/profanity/moderation/services/dictionary-filter.service.ts
+@@ -116,8 +116,12 @@ export class DictionaryFilterService {
+   containsBadWords(text: string): boolean {
+     const normalized = text.toLowerCase();
+ 
+-    return this.arabicBadWords.some((word) =>
+-      normalized.includes(word.toLowerCase()),
+-    );
++    return this.arabicBadWords.some((word) => {
++      // normalized input already has whitespace stripped, so we
++      // strip spaces from dictionary phrases too before comparing
++      // (otherwise multi-word phrases like "كس امك" would never match).
++      const normalizedWord = word.toLowerCase().replace(/\s+/g, '');
++      return normalized.includes(normalizedWord);
++    });
+   }
+ }
+diff --git a/backend/src/reviews/reviews.service.ts b/backend/src/reviews/reviews.service.ts
+index 842c779..c41e394 100644
+--- a/backend/src/reviews/reviews.service.ts
++++ b/backend/src/reviews/reviews.service.ts
+@@ -233,6 +233,15 @@ export class ReviewsService {
+     if (currentUser.role !== Role.DOCTOR) {
+       throw new ForbiddenException('Only doctors can reply to reviews');
+     }
++
++    const moderation = await this.moderation.moderate(dto.reply);
++
++    if (moderation.action === ModerationAction.REJECT) {
++      throw new BadRequestException(
++        'ردك يحتوي على ألفاظ غير لائقة، من فضلك أعد صياغته.',
++      );
++    }
++
+     return this.prisma.review.update({
+       where: {
+         id: reviewId,
+diff --git a/frontend/src/pages/DoctorReviews.jsx b/frontend/src/pages/DoctorReviews.jsx
+index a92639d..40432ba 100644
+--- a/frontend/src/pages/DoctorReviews.jsx
++++ b/frontend/src/pages/DoctorReviews.jsx
+@@ -2,11 +2,10 @@ import { useState, useEffect } from "react";
+ import api from "../api/axios";
+ import Stars from "../components/Stars";
+ 
+-function ReplyBox({ review, onReplied }) {
+-  const [reply, setReply] = useState("");
++function ReplyBox({ review, initialValue = "", onReplied, onCancel }) {
++  const [reply, setReply] = useState(initialValue);
+   const [error, setError] = useState("");
+   const [submitting, setSubmitting] = useState(false);
+-  const [open, setOpen] = useState(false);
+ 
+   async function handleSubmit(e) {
+     e.preventDefault();
+@@ -26,14 +25,6 @@ function ReplyBox({ review, onReplied }) {
+     }
+   }
+ 
+-  if (!open) {
+-    return (
+-      <button className="btn btn-outline btn-sm" onClick={() => setOpen(true)}>
+-        رد على التقييم
+-      </button>
+-    );
+-  }
+-
+   return (
+     <form onSubmit={handleSubmit} style={{ marginTop: 8 }}>
+       {error && <div className="alert alert-error">{error}</div>}
+@@ -47,7 +38,7 @@ function ReplyBox({ review, onReplied }) {
+         <button type="submit" className="btn btn-primary btn-sm" disabled={submitting}>
+           {submitting ? "جاري الإرسال..." : "إرسال الرد"}
+         </button>
+-        <button type="button" className="btn btn-outline btn-sm" onClick={() => setOpen(false)}>
++        <button type="button" className="btn btn-outline btn-sm" onClick={onCancel}>
+           إلغاء
+         </button>
+       </div>
+@@ -55,6 +46,52 @@ function ReplyBox({ review, onReplied }) {
+   );
+ }
+ 
++function ReviewCard({ review, onChanged }) {
++  const [editing, setEditing] = useState(false);
++
++  return (
++    <div className="card">
++      <div className="row between wrap" style={{ marginBottom: 6 }}>
++        <strong>{review.patient.fullName || review.patient.name}</strong>
++        <Stars value={review.rating} />
++      </div>
++      <p style={{ marginBottom: 8 }}>{review.comment}</p>
++
++      {review.doctorReply && !editing ? (
++        <>
++          <div
++            style={{
++              background: "var(--teal-50)",
++              borderRadius: "var(--radius-sm)",
++              padding: "10px 12px",
++            }}
++          >
++            <strong style={{ fontSize: 13.5, color: "var(--teal-800)" }}>ردك:</strong>
++            <p style={{ fontSize: 14, marginTop: 4 }}>{review.doctorReply}</p>
++          </div>
++          <button
++            className="btn btn-outline btn-sm"
++            style={{ marginTop: 8 }}
++            onClick={() => setEditing(true)}
++          >
++            تعديل الرد
++          </button>
++        </>
++      ) : (
++        <ReplyBox
++          review={review}
++          initialValue={review.doctorReply || ""}
++          onReplied={() => {
++            setEditing(false);
++            onChanged();
++          }}
++          onCancel={() => setEditing(false)}
++        />
++      )}
++    </div>
++  );
++}
++
+ function DoctorReviews() {
+   const [data, setData] = useState(null);
+   const [loading, setLoading] = useState(true);
+@@ -147,28 +184,7 @@ function DoctorReviews() {
+ 
+           <div className="stack">
+             {data.reviews.map((review) => (
+-              <div key={review.id} className="card">
+-                <div className="row between wrap" style={{ marginBottom: 6 }}>
+-                  <strong>{review.patient.fullName || review.patient.name}</strong>
+-                  <Stars value={review.rating} />
+-                </div>
+-                <p style={{ marginBottom: 8 }}>{review.comment}</p>
+-
+-                {review.doctorReply ? (
+-                  <div
+-                    style={{
+-                      background: "var(--teal-50)",
+-                      borderRadius: "var(--radius-sm)",
+-                      padding: "10px 12px",
+-                    }}
+-                  >
+-                    <strong style={{ fontSize: 13.5, color: "var(--teal-800)" }}>ردك:</strong>
+-                    <p style={{ fontSize: 14, marginTop: 4 }}>{review.doctorReply}</p>
+-                  </div>
+-                ) : (
+-                  <ReplyBox review={review} onReplied={fetchReviews} />
+-                )}
+-              </div>
++              <ReviewCard key={review.id} review={review} onChanged={fetchReviews} />
+             ))}
+           </div>
+         </>
+-- 
+2.43.0
+

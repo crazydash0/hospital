@@ -116,8 +116,12 @@ export class DictionaryFilterService {
   containsBadWords(text: string): boolean {
     const normalized = text.toLowerCase();
 
-    return this.arabicBadWords.some((word) =>
-      normalized.includes(word.toLowerCase()),
-    );
+    return this.arabicBadWords.some((word) => {
+      // normalized input already has whitespace stripped, so we
+      // strip spaces from dictionary phrases too before comparing
+      // (otherwise multi-word phrases like "كس امك" would never match).
+      const normalizedWord = word.toLowerCase().replace(/\s+/g, '');
+      return normalized.includes(normalizedWord);
+    });
   }
 }
