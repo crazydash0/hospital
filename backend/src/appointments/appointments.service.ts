@@ -295,6 +295,7 @@ export class AppointmentsService {
     startHour: number,
     endHour: number,
     duration: number,
+    note?: string,
   ) {
     const doctor = await this.prisma.doctor.findUnique({
       where: { userId: doctorUserId },
@@ -304,13 +305,105 @@ export class AppointmentsService {
       throw new NotFoundException('Doctor not found');
     }
 
+    if (endHour <= startHour) {
+      throw new BadRequestException(
+        'ساعة النهاية لازم تكون بعد ساعة البداية',
+      );
+    }
+
     return this.prisma.weeklyScheduleTemplate.upsert({
       where: {
         doctorId_dayOfWeek: { doctorId: doctor.id, dayOfWeek },
       },
-      update: { startHour, endHour, duration },
-      create: { doctorId: doctor.id, dayOfWeek, startHour, endHour, duration },
+      update: { startHour, endHour, duration, note },
+      create: {
+        doctorId: doctor.id,
+        dayOfWeek,
+        startHour,
+        endHour,
+        duration,
+        note,
+      },
     });
+  }
+
+  // إنشاء نطاق من الأيام دفعة واحدة (مثال: من الأحد للثلاثاء)
+  async setWeeklyRange(
+    doctorUserId: number,
+    fromDay: number,
+    toDay: number,
+    startHour: number,
+    endHour: number,
+    duration: number,
+    note?: string,
+  ) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { userId: doctorUserId },
+    });
+
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
+    }
+
+    if (fromDay > toDay) {
+      throw new BadRequestException(
+        'يوم البداية لازم يكون قبل يوم النهاية (لا يدعم النطاق الملتف حاليًا)',
+      );
+    }
+
+    if (endHour <= startHour) {
+      throw new BadRequestException(
+        'ساعة النهاية لازم تكون بعد ساعة البداية',
+      );
+    }
+
+    const results = [];
+    for (let day = fromDay; day <= toDay; day++) {
+      const result = await this.prisma.weeklyScheduleTemplate.upsert({
+        where: {
+          doctorId_dayOfWeek: { doctorId: doctor.id, dayOfWeek: day },
+        },
+        update: { startHour, endHour, duration, note },
+        create: {
+          doctorId: doctor.id,
+          dayOfWeek: day,
+          startHour,
+          endHour,
+          duration,
+          note,
+        },
+      });
+      results.push(result);
+    }
+
+    return results;
+  }
+
+  // حذف يوم بالكامل من الجدول الأسبوعي
+  async deleteWeeklyTemplateDay(doctorUserId: number, dayOfWeek: number) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { userId: doctorUserId },
+    });
+
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
+    }
+
+    const existing = await this.prisma.weeklyScheduleTemplate.findUnique({
+      where: {
+        doctorId_dayOfWeek: { doctorId: doctor.id, dayOfWeek },
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('لا يوجد جدول لهذا اليوم أصلًا');
+    }
+
+    await this.prisma.weeklyScheduleTemplate.delete({
+      where: { id: existing.id },
+    });
+
+    return { message: 'تم حذف اليوم من الجدول' };
   }
 
   // عرض الجدول الأسبوعي الحالي
@@ -325,6 +418,22 @@ export class AppointmentsService {
 
     return this.prisma.weeklyScheduleTemplate.findMany({
       where: { doctorId: doctor.id },
+      orderBy: { dayOfWeek: 'asc' },
+    });
+  }
+
+  // عرض الجدول الأسبوعي لدكتور معين (متاح للمريض عشان يشوفه قبل الحجز)
+  async getPublicWeeklyTemplate(doctorId: number) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { id: doctorId },
+    });
+
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
+    }
+
+    return this.prisma.weeklyScheduleTemplate.findMany({
+      where: { doctorId },
       orderBy: { dayOfWeek: 'asc' },
     });
   }
@@ -346,6 +455,48 @@ export class AppointmentsService {
     } catch (error) {
       throw new BadRequestException('Leave already registered for this date');
     }
+  }
+
+  // عرض أيام الإجازة القادمة
+  async getLeaves(doctorUserId: number) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { userId: doctorUserId },
+    });
+
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
+    }
+
+    return this.prisma.doctorLeave.findMany({
+      where: {
+        doctorId: doctor.id,
+        date: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+      },
+      orderBy: { date: 'asc' },
+    });
+  }
+
+  // حذف يوم إجازة (التراجع عنه)
+  async removeLeave(doctorUserId: number, leaveId: number) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { userId: doctorUserId },
+    });
+
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
+    }
+
+    const leave = await this.prisma.doctorLeave.findUnique({
+      where: { id: leaveId },
+    });
+
+    if (!leave || leave.doctorId !== doctor.id) {
+      throw new NotFoundException('Leave not found');
+    }
+
+    await this.prisma.doctorLeave.delete({ where: { id: leaveId } });
+
+    return { message: 'تم حذف يوم الإجازة' };
   }
 
   // توليد مواعيد الأسبوع الجاي حسب الجدول الأسبوعي، مع تخطي الإجازات

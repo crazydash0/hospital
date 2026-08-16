@@ -213,6 +213,7 @@ model WeeklyScheduleTemplate {
   startHour Int
   endHour   Int
   duration  Int    @default(30)
+  note      String?
 
   doctor    Doctor @relation(fields: [doctorId], references: [id])
 

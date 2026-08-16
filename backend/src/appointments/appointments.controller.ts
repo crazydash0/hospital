@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AppointmentsService } from './appointments.service';
 import { Roles } from '../auth/roles.decorator';
@@ -6,7 +6,7 @@ import { Role } from '@prisma/client';
 import { BookAppointmentDto } from '../auth/dto/book-appointment.dto';
 import { CreateSlotsDto } from '../auth/dto/create-slots.dto';
 import { ParseIntPipe } from '@nestjs/common';
-import { SetWeeklyTemplateDto } from '../auth/dto/weekly-template.dto';
+import { SetWeeklyTemplateDto, SetWeeklyRangeDto } from '../auth/dto/weekly-template.dto';
 import { CreateLeaveDto } from '../auth/dto/doctor-leave.dto';
 
 @ApiTags('Appointments')
@@ -87,7 +87,31 @@ createSlots(@Req() req, @Body() body: CreateSlotsDto) {
       body.startHour,
       body.endHour,
       body.duration,
+      body.note,
     );
+  }
+
+  @Roles(Role.DOCTOR)
+  @Post('weekly-template/range')
+  setWeeklyRange(@Req() req, @Body() body: SetWeeklyRangeDto) {
+    return this.service.setWeeklyRange(
+      req.user.userId,
+      body.fromDay,
+      body.toDay,
+      body.startHour,
+      body.endHour,
+      body.duration,
+      body.note,
+    );
+  }
+
+  @Roles(Role.DOCTOR)
+  @Delete('weekly-template/:dayOfWeek')
+  deleteWeeklyTemplateDay(
+    @Req() req,
+    @Param('dayOfWeek', ParseIntPipe) dayOfWeek: number,
+  ) {
+    return this.service.deleteWeeklyTemplateDay(req.user.userId, dayOfWeek);
   }
 
   @Roles(Role.DOCTOR)
@@ -96,10 +120,28 @@ createSlots(@Req() req, @Body() body: CreateSlotsDto) {
     return this.service.getWeeklyTemplate(req.user.userId);
   }
 
+  // جدول دكتور معين، متاح لأي مستخدم مسجل دخول (مريض يشوفه قبل الحجز)
+  @Get('weekly-template/doctor/:doctorId')
+  getPublicWeeklyTemplate(@Param('doctorId', ParseIntPipe) doctorId: number) {
+    return this.service.getPublicWeeklyTemplate(doctorId);
+  }
+
   @Roles(Role.DOCTOR)
   @Post('leaves')
   addLeave(@Req() req, @Body() body: CreateLeaveDto) {
     return this.service.addLeave(req.user.userId, body.date);
+  }
+
+  @Roles(Role.DOCTOR)
+  @Get('leaves')
+  getLeaves(@Req() req) {
+    return this.service.getLeaves(req.user.userId);
+  }
+
+  @Roles(Role.DOCTOR)
+  @Delete('leaves/:id')
+  removeLeave(@Req() req, @Param('id', ParseIntPipe) id: number) {
+    return this.service.removeLeave(req.user.userId, id);
   }
 
   @Roles(Role.DOCTOR)
