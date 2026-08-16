@@ -53,7 +53,7 @@ export class DoctorsService {
     });
   }
   async getAllDoctors() {
-    return this.prisma.doctor.findMany({
+    const doctors = await this.prisma.doctor.findMany({
       include: {
         user: {
           select: {
@@ -63,6 +63,23 @@ export class DoctorsService {
         },
       },
     });
+
+    const doctorIds = doctors.map((d) => d.id);
+
+    const aggregates = await this.prisma.review.groupBy({
+      by: ['doctorId'],
+      where: { doctorId: { in: doctorIds }, isHidden: false },
+      _avg: { rating: true },
+      _count: true,
+    });
+
+    const statsMap = new Map(aggregates.map((a) => [a.doctorId, a]));
+
+    return doctors.map((doctor) => ({
+      ...doctor,
+      averageRating: statsMap.get(doctor.id)?._avg.rating ?? null,
+      totalReviews: statsMap.get(doctor.id)?._count ?? 0,
+    }));
   }
   async getDoctorById(id: number) {
     const doctor = await this.prisma.doctor.findUnique({

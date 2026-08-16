@@ -15,6 +15,7 @@ import DoctorProfile from "./pages/DoctorProfile";
 import MyPatients from "./pages/MyPatients";
 import PatientProfile from "./pages/PatientProfile";
 import DoctorEditProfile from "./pages/DoctorEditProfile";
+import DoctorReviews from "./pages/DoctorReviews";
 
 function App() {
   return (
@@ -103,6 +104,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["DOCTOR"]}>
               <DoctorEditProfile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-reviews"
+          element={
+            <ProtectedRoute allowedRoles={["DOCTOR"]}>
+              <DoctorReviews />
             </ProtectedRoute>
           }
         />

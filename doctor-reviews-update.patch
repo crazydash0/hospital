@@ -1,0 +1,367 @@
+From 328c61978a6467c4424ab3a187f14380e6c84e0c Mon Sep 17 00:00:00 2001
+From: Claude Assistant <assistant@example.com>
+Date: Sun, 16 Aug 2026 07:30:18 +0000
+Subject: [PATCH] add doctor reviews page with reply feature and show ratings
+ on doctor cards
+
+---
+ backend/src/doctors/doctors.service.ts |  19 ++-
+ frontend/src/App.jsx                   |   9 ++
+ frontend/src/components/Stars.jsx      |  12 ++
+ frontend/src/components/navbar.jsx     |   1 +
+ frontend/src/pages/BookAppointment.jsx |   9 ++
+ frontend/src/pages/DoctorProfile.jsx   |  12 +-
+ frontend/src/pages/DoctorReviews.jsx   | 180 +++++++++++++++++++++++++
+ frontend/src/pages/Home.jsx            |   4 +
+ 8 files changed, 234 insertions(+), 12 deletions(-)
+ create mode 100644 frontend/src/components/Stars.jsx
+ create mode 100644 frontend/src/pages/DoctorReviews.jsx
+
+diff --git a/backend/src/doctors/doctors.service.ts b/backend/src/doctors/doctors.service.ts
+index 8fcba74..64b9968 100644
+--- a/backend/src/doctors/doctors.service.ts
++++ b/backend/src/doctors/doctors.service.ts
+@@ -53,7 +53,7 @@ export class DoctorsService {
+     });
+   }
+   async getAllDoctors() {
+-    return this.prisma.doctor.findMany({
++    const doctors = await this.prisma.doctor.findMany({
+       include: {
+         user: {
+           select: {
+@@ -63,6 +63,23 @@ export class DoctorsService {
+         },
+       },
+     });
++
++    const doctorIds = doctors.map((d) => d.id);
++
++    const aggregates = await this.prisma.review.groupBy({
++      by: ['doctorId'],
++      where: { doctorId: { in: doctorIds }, isHidden: false },
++      _avg: { rating: true },
++      _count: true,
++    });
++
++    const statsMap = new Map(aggregates.map((a) => [a.doctorId, a]));
++
++    return doctors.map((doctor) => ({
++      ...doctor,
++      averageRating: statsMap.get(doctor.id)?._avg.rating ?? null,
++      totalReviews: statsMap.get(doctor.id)?._count ?? 0,
++    }));
+   }
+   async getDoctorById(id: number) {
+     const doctor = await this.prisma.doctor.findUnique({
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index c557a12..c0eeb94 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -15,6 +15,7 @@ import DoctorProfile from "./pages/DoctorProfile";
+ import MyPatients from "./pages/MyPatients";
+ import PatientProfile from "./pages/PatientProfile";
+ import DoctorEditProfile from "./pages/DoctorEditProfile";
++import DoctorReviews from "./pages/DoctorReviews";
+ 
+ function App() {
+   return (
+@@ -106,6 +107,14 @@ function App() {
+             </ProtectedRoute>
+           }
+         />
++        <Route
++          path="/my-reviews"
++          element={
++            <ProtectedRoute allowedRoles={["DOCTOR"]}>
++              <DoctorReviews />
++            </ProtectedRoute>
++          }
++        />
+ 
+         <Route
+           path="/admin"
+diff --git a/frontend/src/components/Stars.jsx b/frontend/src/components/Stars.jsx
+new file mode 100644
+index 0000000..f955445
+--- /dev/null
++++ b/frontend/src/components/Stars.jsx
+@@ -0,0 +1,12 @@
++function Stars({ value, size = 15 }) {
++  const rounded = Math.round(value || 0);
++  return (
++    <span className="star-rating" style={{ cursor: "default", fontSize: size, gap: 2 }}>
++      {[1, 2, 3, 4, 5].map((n) => (
++        <span key={n} className={n <= rounded ? "filled" : ""}>★</span>
++      ))}
++    </span>
++  );
++}
++
++export default Stars;
+diff --git a/frontend/src/components/navbar.jsx b/frontend/src/components/navbar.jsx
+index 64cdc5b..96049d5 100644
+--- a/frontend/src/components/navbar.jsx
++++ b/frontend/src/components/navbar.jsx
+@@ -31,6 +31,7 @@ function Navbar() {
+     { to: "/patients", label: "مرضاي" },
+     { to: "/weekly-schedule", label: "الجدول الأسبوعي" },
+     { to: "/create-slots", label: "إضافة مواعيد" },
++    { to: "/my-reviews", label: "التقييمات" },
+     { to: "/my-profile", label: "بروفايلي" },
+   ];
+ 
+diff --git a/frontend/src/pages/BookAppointment.jsx b/frontend/src/pages/BookAppointment.jsx
+index 4df2f58..e09c9a5 100644
+--- a/frontend/src/pages/BookAppointment.jsx
++++ b/frontend/src/pages/BookAppointment.jsx
+@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
+ import { Link } from "react-router-dom";
+ import api from "../api/axios";
+ import Avatar from "../components/Avatar";
++import Stars from "../components/Stars";
+ 
+ function BookAppointment() {
+   const [doctors, setDoctors] = useState([]);
+@@ -134,6 +135,14 @@ function BookAppointment() {
+                         </Link>
+                       </h3>
+                       <span className="muted" style={{ fontSize: 13.5 }}>{doctor.specialty}</span>
++                      {doctor.totalReviews > 0 && (
++                        <div className="row" style={{ marginTop: 2, gap: 5 }}>
++                          <Stars value={doctor.averageRating} />
++                          <span className="muted" style={{ fontSize: 12.5 }}>
++                            ({doctor.totalReviews})
++                          </span>
++                        </div>
++                      )}
+                     </div>
+                   </div>
+                   {doctor.bio && (
+diff --git a/frontend/src/pages/DoctorProfile.jsx b/frontend/src/pages/DoctorProfile.jsx
+index f028b22..5444612 100644
+--- a/frontend/src/pages/DoctorProfile.jsx
++++ b/frontend/src/pages/DoctorProfile.jsx
+@@ -2,17 +2,7 @@ import { useState, useEffect } from "react";
+ import { useParams, Link } from "react-router-dom";
+ import api from "../api/axios";
+ import Avatar from "../components/Avatar";
+-
+-function Stars({ value }) {
+-  const rounded = Math.round(value || 0);
+-  return (
+-    <span className="star-rating" style={{ cursor: "default", fontSize: 18 }}>
+-      {[1, 2, 3, 4, 5].map((n) => (
+-        <span key={n} className={n <= rounded ? "filled" : ""}>★</span>
+-      ))}
+-    </span>
+-  );
+-}
++import Stars from "../components/Stars";
+ 
+ function DoctorProfile() {
+   const { id } = useParams();
+diff --git a/frontend/src/pages/DoctorReviews.jsx b/frontend/src/pages/DoctorReviews.jsx
+new file mode 100644
+index 0000000..a92639d
+--- /dev/null
++++ b/frontend/src/pages/DoctorReviews.jsx
+@@ -0,0 +1,180 @@
++import { useState, useEffect } from "react";
++import api from "../api/axios";
++import Stars from "../components/Stars";
++
++function ReplyBox({ review, onReplied }) {
++  const [reply, setReply] = useState("");
++  const [error, setError] = useState("");
++  const [submitting, setSubmitting] = useState(false);
++  const [open, setOpen] = useState(false);
++
++  async function handleSubmit(e) {
++    e.preventDefault();
++    setError("");
++    if (reply.trim().length < 2) {
++      setError("الرد قصير جدًا");
++      return;
++    }
++    setSubmitting(true);
++    try {
++      await api.patch(`/reviews/${review.id}/reply`, { reply });
++      onReplied();
++    } catch (err) {
++      setError(err.response?.data?.message || "حصل خطأ أثناء إرسال الرد");
++    } finally {
++      setSubmitting(false);
++    }
++  }
++
++  if (!open) {
++    return (
++      <button className="btn btn-outline btn-sm" onClick={() => setOpen(true)}>
++        رد على التقييم
++      </button>
++    );
++  }
++
++  return (
++    <form onSubmit={handleSubmit} style={{ marginTop: 8 }}>
++      {error && <div className="alert alert-error">{error}</div>}
++      <textarea
++        placeholder="اكتب ردك على المريض..."
++        value={reply}
++        onChange={(e) => setReply(e.target.value)}
++        rows={3}
++      />
++      <div className="row" style={{ marginTop: 8 }}>
++        <button type="submit" className="btn btn-primary btn-sm" disabled={submitting}>
++          {submitting ? "جاري الإرسال..." : "إرسال الرد"}
++        </button>
++        <button type="button" className="btn btn-outline btn-sm" onClick={() => setOpen(false)}>
++          إلغاء
++        </button>
++      </div>
++    </form>
++  );
++}
++
++function DoctorReviews() {
++  const [data, setData] = useState(null);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState("");
++
++  async function fetchReviews() {
++    setError("");
++    try {
++      const profileRes = await api.get("/doctors/me/profile");
++      const reviewsRes = await api.get(`/reviews/doctor/${profileRes.data.id}?limit=50`);
++      setData(reviewsRes.data);
++    } catch (err) {
++      setError(err.response?.data?.message || "تعذر تحميل التقييمات");
++    } finally {
++      setLoading(false);
++    }
++  }
++
++  useEffect(() => {
++    fetchReviews();
++  }, []);
++
++  if (loading) {
++    return (
++      <div className="page center">
++        <p className="muted">جاري التحميل...</p>
++      </div>
++    );
++  }
++
++  if (error) {
++    return (
++      <div className="page">
++        <div className="alert alert-error">{error}</div>
++      </div>
++    );
++  }
++
++  const stats = data.statistics;
++  const breakdown = [
++    { label: "5 نجوم", value: stats.fiveStars },
++    { label: "4 نجوم", value: stats.fourStars },
++    { label: "3 نجوم", value: stats.threeStars },
++    { label: "نجمتين", value: stats.twoStars },
++    { label: "نجمة واحدة", value: stats.oneStar },
++  ];
++
++  return (
++    <div className="page">
++      <div className="page-head">
++        <h1>التقييمات</h1>
++        <p className="subtitle">كل تقييمات المرضى ليك، وتقدر ترد على أي تقييم عشان يشوفه الكل.</p>
++      </div>
++
++      {stats.totalReviews === 0 ? (
++        <div className="empty-state">لسه مفيش تقييمات وصلتلك.</div>
++      ) : (
++        <>
++          <div className="card" style={{ marginBottom: 24 }}>
++            <div className="row wrap" style={{ gap: 30, alignItems: "center" }}>
++              <div className="center">
++                <div style={{ fontSize: 42, fontFamily: "var(--display)", fontWeight: 700, color: "var(--teal-800)" }}>
++                  {stats.averageRating.toFixed(1)}
++                </div>
++                <Stars value={stats.averageRating} size={20} />
++                <div className="muted" style={{ fontSize: 13.5, marginTop: 4 }}>
++                  من {stats.totalReviews} تقييم
++                </div>
++              </div>
++              <div className="stack" style={{ flex: 1, minWidth: 200, gap: 6 }}>
++                {breakdown.map((b) => (
++                  <div key={b.label} className="row" style={{ gap: 8 }}>
++                    <span className="muted" style={{ fontSize: 13, width: 70 }}>{b.label}</span>
++                    <div style={{ flex: 1, height: 8, background: "var(--teal-50)", borderRadius: 999 }}>
++                      <div
++                        style={{
++                          width: `${stats.totalReviews ? (b.value / stats.totalReviews) * 100 : 0}%`,
++                          height: "100%",
++                          background: "var(--amber-600)",
++                          borderRadius: 999,
++                        }}
++                      />
++                    </div>
++                    <span className="muted" style={{ fontSize: 13 }}>{b.value}</span>
++                  </div>
++                ))}
++              </div>
++            </div>
++          </div>
++
++          <div className="stack">
++            {data.reviews.map((review) => (
++              <div key={review.id} className="card">
++                <div className="row between wrap" style={{ marginBottom: 6 }}>
++                  <strong>{review.patient.fullName || review.patient.name}</strong>
++                  <Stars value={review.rating} />
++                </div>
++                <p style={{ marginBottom: 8 }}>{review.comment}</p>
++
++                {review.doctorReply ? (
++                  <div
++                    style={{
++                      background: "var(--teal-50)",
++                      borderRadius: "var(--radius-sm)",
++                      padding: "10px 12px",
++                    }}
++                  >
++                    <strong style={{ fontSize: 13.5, color: "var(--teal-800)" }}>ردك:</strong>
++                    <p style={{ fontSize: 14, marginTop: 4 }}>{review.doctorReply}</p>
++                  </div>
++                ) : (
++                  <ReplyBox review={review} onReplied={fetchReviews} />
++                )}
++              </div>
++            ))}
++          </div>
++        </>
++      )}
++    </div>
++  );
++}
++
++export default DoctorReviews;
+diff --git a/frontend/src/pages/Home.jsx b/frontend/src/pages/Home.jsx
+index c193713..a269795 100644
+--- a/frontend/src/pages/Home.jsx
++++ b/frontend/src/pages/Home.jsx
+@@ -47,6 +47,10 @@ function DoctorHome({ user }) {
+           <h3>الجدول الأسبوعي</h3>
+           <p className="muted">حدّد أيام وساعات شغلك الأسبوعية.</p>
+         </Link>
++        <Link to="/my-reviews" className="card">
++          <h3>التقييمات</h3>
++          <p className="muted">شوف تقييمات مرضاك ورد عليهم.</p>
++        </Link>
+         <Link to="/my-profile" className="card">
+           <h3>بروفايلي</h3>
+           <p className="muted">أضف صورتك ونبذة عنك عشان المرضى يثقوا فيك أكتر.</p>
+-- 
+2.43.0
+

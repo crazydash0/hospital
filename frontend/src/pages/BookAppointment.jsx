@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import api from "../api/axios";
 import Avatar from "../components/Avatar";
+import Stars from "../components/Stars";
 
 function BookAppointment() {
   const [doctors, setDoctors] = useState([]);
@@ -134,6 +135,14 @@ function BookAppointment() {
                         </Link>
                       </h3>
                       <span className="muted" style={{ fontSize: 13.5 }}>{doctor.specialty}</span>
+                      {doctor.totalReviews > 0 && (
+                        <div className="row" style={{ marginTop: 2, gap: 5 }}>
+                          <Stars value={doctor.averageRating} />
+                          <span className="muted" style={{ fontSize: 12.5 }}>
+                            ({doctor.totalReviews})
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   {doctor.bio && (

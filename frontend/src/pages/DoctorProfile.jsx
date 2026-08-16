@@ -2,17 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import api from "../api/axios";
 import Avatar from "../components/Avatar";
-
-function Stars({ value }) {
-  const rounded = Math.round(value || 0);
-  return (
-    <span className="star-rating" style={{ cursor: "default", fontSize: 18 }}>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <span key={n} className={n <= rounded ? "filled" : ""}>★</span>
-      ))}
-    </span>
-  );
-}
+import Stars from "../components/Stars";
 
 function DoctorProfile() {
   const { id } = useParams();
