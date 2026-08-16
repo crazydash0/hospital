@@ -11,6 +11,9 @@ import MyAppointments from "./pages/MyAppointments";
 import DoctorAppointments from "./pages/DoctorAppointments";
 import MyMedicalRecords from "./pages/MyMedicalRecords";
 import AdminDashboard from "./pages/AdminDashboard";
+import DoctorProfile from "./pages/DoctorProfile";
+import MyPatients from "./pages/MyPatients";
+import PatientProfile from "./pages/PatientProfile";
 
 function App() {
   return (
@@ -45,6 +48,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/doctors/:id"
+          element={
+            <ProtectedRoute>
+              <DoctorProfile />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/create-slots"
@@ -67,6 +78,22 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["DOCTOR"]}>
               <DoctorAppointments />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/patients"
+          element={
+            <ProtectedRoute allowedRoles={["DOCTOR"]}>
+              <MyPatients />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/patients/:id"
+          element={
+            <ProtectedRoute allowedRoles={["DOCTOR"]}>
+              <PatientProfile />
             </ProtectedRoute>
           }
         />

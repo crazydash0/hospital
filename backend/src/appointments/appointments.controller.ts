@@ -55,6 +55,13 @@ export class AppointmentsController {
     return this.service.cancelAppointment(id, req.user);
   }
 
+  // Doctor cancels appointment
+  @Roles(Role.DOCTOR)
+  @Patch(':id/doctor-cancel')
+  cancelByDoctor(@Param('id', ParseIntPipe) id: number, @Req() req) {
+    return this.service.cancelAppointmentByDoctor(id, req.user);
+  }
+
   @Get('doctor/:doctorId/slots')
   getDoctorAvailableSlots(@Param('doctorId', ParseIntPipe) doctorId: number) {
     return this.service.getAvailableSlots(doctorId);

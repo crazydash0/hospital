@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "../api/axios";
+import HourRange from "../components/HourRange";
 
 const DAYS = [
   "الأحد",
@@ -105,9 +106,16 @@ function WeeklySchedule() {
           <div className="stack">
             {template.map((day) => (
               <div key={day.id} className="card-row">
-                <span>
-                  {DAYS[day.dayOfWeek]}: {day.startHour}:00 - {day.endHour}:00 ({day.duration} دقيقة)
-                </span>
+                <div>
+                  <strong style={{ display: "block", marginBottom: 2 }}>
+                    {DAYS[day.dayOfWeek]}
+                  </strong>
+                  <HourRange
+                    startHour={day.startHour}
+                    endHour={day.endHour}
+                    duration={day.duration}
+                  />
+                </div>
                 <button className="btn btn-outline btn-sm" onClick={() => handleSelectDay(day)}>
                   تعديل
                 </button>

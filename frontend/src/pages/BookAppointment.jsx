@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import api from "../api/axios";
 
 function BookAppointment() {
@@ -8,6 +9,8 @@ function BookAppointment() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [search, setSearch] = useState("");
+  const [specialty, setSpecialty] = useState("");
 
   useEffect(() => {
     async function fetchDoctors() {
@@ -20,6 +23,22 @@ function BookAppointment() {
     }
     fetchDoctors();
   }, []);
+
+  const specialties = useMemo(
+    () => [...new Set(doctors.map((d) => d.specialty).filter(Boolean))],
+    [doctors]
+  );
+
+  const filteredDoctors = useMemo(() => {
+    return doctors.filter((d) => {
+      const matchesSearch =
+        !search.trim() ||
+        d.fullName?.toLowerCase().includes(search.trim().toLowerCase()) ||
+        d.specialty?.toLowerCase().includes(search.trim().toLowerCase());
+      const matchesSpecialty = !specialty || d.specialty === specialty;
+      return matchesSearch && matchesSpecialty;
+    });
+  }, [doctors, search, specialty]);
 
   useEffect(() => {
     if (!selectedDoctor) return;
@@ -65,43 +84,75 @@ function BookAppointment() {
       {doctors.length === 0 ? (
         <div className="empty-state">لا يوجد دكاترة متاحين حاليًا.</div>
       ) : (
-        <div className="grid grid-3">
-          {doctors.map((doctor) => (
-            <div
-              key={doctor.id}
-              className="card"
-              style={{
-                cursor: "pointer",
-                borderColor:
-                  selectedDoctor?.id === doctor.id ? "var(--teal-700)" : undefined,
-                boxShadow:
-                  selectedDoctor?.id === doctor.id ? "0 0 0 2px var(--teal-100)" : undefined,
-              }}
-              onClick={() => setSelectedDoctor(doctor)}
+        <>
+          <div className="row wrap" style={{ marginBottom: 18, gap: 10 }}>
+            <input
+              type="text"
+              placeholder="ابحث بالاسم أو التخصص..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ maxWidth: 260 }}
+            />
+            <select
+              value={specialty}
+              onChange={(e) => setSpecialty(e.target.value)}
+              style={{ maxWidth: 200 }}
             >
-              <div className="row" style={{ marginBottom: 10 }}>
-                <div className="doctor-avatar">
-                  {(doctor.fullName || "د")[0]}
+              <option value="">كل التخصصات</option>
+              {specialties.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {filteredDoctors.length === 0 ? (
+            <div className="empty-state">مفيش دكاترة مطابقين للبحث.</div>
+          ) : (
+            <div className="grid grid-3">
+              {filteredDoctors.map((doctor) => (
+                <div
+                  key={doctor.id}
+                  className="card"
+                  style={{
+                    cursor: "pointer",
+                    borderColor:
+                      selectedDoctor?.id === doctor.id ? "var(--teal-700)" : undefined,
+                    boxShadow:
+                      selectedDoctor?.id === doctor.id ? "0 0 0 2px var(--teal-100)" : undefined,
+                  }}
+                  onClick={() => setSelectedDoctor(doctor)}
+                >
+                  <div className="row" style={{ marginBottom: 10 }}>
+                    <div className="doctor-avatar">
+                      {(doctor.fullName || "د")[0]}
+                    </div>
+                    <div>
+                      <h3 style={{ marginBottom: 2 }}>
+                        <Link to={`/doctors/${doctor.id}`} onClick={(e) => e.stopPropagation()}>
+                          د. {doctor.fullName}
+                        </Link>
+                      </h3>
+                      <span className="muted" style={{ fontSize: 13.5 }}>{doctor.specialty}</span>
+                    </div>
+                  </div>
+                  {doctor.bio && (
+                    <p className="muted" style={{ fontSize: 14, marginBottom: 10 }}>
+                      {doctor.bio}
+                    </p>
+                  )}
+                  <div className="row between">
+                    <strong style={{ color: "var(--teal-800)" }}>{doctor.price} ج.م</strong>
+                    <button className="btn btn-outline btn-sm">
+                      {selectedDoctor?.id === doctor.id ? "تم الاختيار" : "اختيار"}
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <h3 style={{ marginBottom: 2 }}>د. {doctor.fullName}</h3>
-                  <span className="muted" style={{ fontSize: 13.5 }}>{doctor.specialty}</span>
-                </div>
-              </div>
-              {doctor.bio && (
-                <p className="muted" style={{ fontSize: 14, marginBottom: 10 }}>
-                  {doctor.bio}
-                </p>
-              )}
-              <div className="row between">
-                <strong style={{ color: "var(--teal-800)" }}>{doctor.price} ج.م</strong>
-                <button className="btn btn-outline btn-sm">
-                  {selectedDoctor?.id === doctor.id ? "تم الاختيار" : "اختيار"}
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {selectedDoctor && (

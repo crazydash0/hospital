@@ -28,6 +28,7 @@ function Navbar() {
   const doctorLinks = [
     { to: "/", label: "الرئيسية" },
     { to: "/doctor-appointments", label: "مواعيدي" },
+    { to: "/patients", label: "مرضاي" },
     { to: "/weekly-schedule", label: "الجدول الأسبوعي" },
     { to: "/create-slots", label: "إضافة مواعيد" },
   ];

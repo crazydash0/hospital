@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import api from "../api/axios";
 import StatusBadge from "../components/StatusBadge";
+import ConfirmModal from "../components/ConfirmModal";
+import ContactChip from "../components/ContactChip";
 
 function ReviewModal({ appointment, onClose, onSubmitted }) {
   const [rating, setRating] = useState(5);
@@ -89,6 +92,7 @@ function MyAppointments() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [reviewTarget, setReviewTarget] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
 
   async function fetchAppointments() {
     try {
@@ -103,15 +107,16 @@ function MyAppointments() {
     fetchAppointments();
   }, []);
 
-  async function handleCancel(appointmentId) {
-    setMessage("");
+  async function handleCancel() {
     setError("");
     try {
-      await api.patch(`/appointments/${appointmentId}/cancel`);
+      await api.patch(`/appointments/${cancelTarget.id}/cancel`);
+      setCancelTarget(null);
       setMessage("تم إلغاء الموعد.");
       fetchAppointments();
     } catch (err) {
       setError(err.response?.data?.message || "حصل خطأ أثناء الإلغاء");
+      setCancelTarget(null);
     }
   }
 
@@ -136,10 +141,12 @@ function MyAppointments() {
           {sorted.map((appt) => (
             <div key={appt.id} className="card">
               <div className="row between wrap">
-                <div className="row">
+                <div className="row" style={{ alignItems: "flex-start" }}>
                   <div className="doctor-avatar">{(appt.doctor.fullName || "د")[0]}</div>
                   <div>
-                    <h3 style={{ marginBottom: 2 }}>د. {appt.doctor.fullName}</h3>
+                    <h3 style={{ marginBottom: 2 }}>
+                      <Link to={`/doctors/${appt.doctor.id}`}>د. {appt.doctor.fullName}</Link>
+                    </h3>
                     <span className="muted" style={{ fontSize: 14 }}>
                       {new Date(appt.slot.startTime).toLocaleString("ar-EG", {
                         weekday: "long",
@@ -150,12 +157,13 @@ function MyAppointments() {
                         minute: "2-digit",
                       })}
                     </span>
+                    <ContactChip email={appt.doctor.user?.email} />
                   </div>
                 </div>
-                <div className="row">
+                <div className="row wrap">
                   <StatusBadge status={appt.status} />
                   {appt.status !== "CANCELLED" && appt.status !== "COMPLETED" && (
-                    <button className="btn btn-danger btn-sm" onClick={() => handleCancel(appt.id)}>
+                    <button className="btn btn-danger btn-sm" onClick={() => setCancelTarget(appt)}>
                       إلغاء
                     </button>
                   )}
@@ -179,6 +187,17 @@ function MyAppointments() {
             setReviewTarget(null);
             setMessage("شكرًا لتقييمك ✨");
           }}
+        />
+      )}
+
+      {cancelTarget && (
+        <ConfirmModal
+          title="إلغاء الموعد"
+          message={`هل أنت متأكد من إلغاء موعدك مع د. ${cancelTarget.doctor.fullName}؟ لا يمكن التراجع عن هذا الإجراء.`}
+          confirmLabel="نعم، ألغِ الموعد"
+          danger
+          onConfirm={handleCancel}
+          onClose={() => setCancelTarget(null)}
         />
       )}
     </div>

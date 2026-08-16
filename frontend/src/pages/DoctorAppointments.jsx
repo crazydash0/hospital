@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import api from "../api/axios";
 import StatusBadge from "../components/StatusBadge";
+import ConfirmModal from "../components/ConfirmModal";
+import ContactChip from "../components/ContactChip";
 
 const emptyRx = () => ({
   medicineName: "",
@@ -165,12 +168,37 @@ function CompleteVisitModal({ appointment, onClose, onDone }) {
   );
 }
 
+function StatsBar({ stats }) {
+  if (!stats) return null;
+  const items = [
+    { label: "إجمالي المواعيد", value: stats.totalAppointments, color: "var(--teal-800)" },
+    { label: "قيد الانتظار", value: stats.pendingAppointments, color: "var(--amber-600)" },
+    { label: "مؤكدة", value: stats.confirmedAppointments, color: "var(--teal-700)" },
+    { label: "مكتملة", value: stats.completedAppointments, color: "var(--green-600)" },
+    { label: "ملغاة", value: stats.cancelledAppointments, color: "var(--red-600)" },
+  ];
+  return (
+    <div className="grid grid-3 section" style={{ marginTop: 0, marginBottom: 30 }}>
+      {items.map((item) => (
+        <div key={item.label} className="card center">
+          <div style={{ fontSize: 30, fontFamily: "var(--display)", fontWeight: 700, color: item.color }}>
+            {item.value ?? 0}
+          </div>
+          <div className="muted" style={{ fontSize: 13.5 }}>{item.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DoctorAppointments() {
   const [appointments, setAppointments] = useState([]);
+  const [stats, setStats] = useState(null);
   const [tab, setTab] = useState("UPCOMING");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [completeTarget, setCompleteTarget] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
 
   async function fetchAppointments() {
     try {
@@ -181,8 +209,18 @@ function DoctorAppointments() {
     }
   }
 
+  async function fetchStats() {
+    try {
+      const response = await api.get("/dashboard/doctor");
+      setStats(response.data);
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
   useEffect(() => {
     fetchAppointments();
+    fetchStats();
   }, []);
 
   async function handleConfirm(id) {
@@ -192,8 +230,23 @@ function DoctorAppointments() {
       await api.patch(`/appointments/${id}/confirm`);
       setMessage("تم تأكيد الموعد.");
       fetchAppointments();
+      fetchStats();
     } catch (err) {
       setError(err.response?.data?.message || "حصل خطأ أثناء التأكيد");
+    }
+  }
+
+  async function handleCancel() {
+    setError("");
+    try {
+      await api.patch(`/appointments/${cancelTarget.id}/doctor-cancel`);
+      setCancelTarget(null);
+      setMessage("تم إلغاء الموعد.");
+      fetchAppointments();
+      fetchStats();
+    } catch (err) {
+      setError(err.response?.data?.message || "حصل خطأ أثناء الإلغاء");
+      setCancelTarget(null);
     }
   }
 
@@ -215,6 +268,8 @@ function DoctorAppointments() {
         <h1>مواعيدي</h1>
         <p className="subtitle">أكّد المواعيد الجديدة، وسجّل التشخيص والروشتة بعد كل زيارة.</p>
       </div>
+
+      <StatsBar stats={stats} />
 
       {message && <div className="alert alert-success">{message}</div>}
       {error && <div className="alert alert-error">{error}</div>}
@@ -238,10 +293,12 @@ function DoctorAppointments() {
           {filtered.map((appt) => (
             <div key={appt.id} className="card">
               <div className="row between wrap">
-                <div className="row">
+                <div className="row" style={{ alignItems: "flex-start" }}>
                   <div className="doctor-avatar">{(appt.patient.fullName || "م")[0]}</div>
                   <div>
-                    <h3 style={{ marginBottom: 2 }}>{appt.patient.fullName}</h3>
+                    <h3 style={{ marginBottom: 2 }}>
+                      <Link to={`/patients/${appt.patient.id}`}>{appt.patient.fullName}</Link>
+                    </h3>
                     <span className="muted" style={{ fontSize: 14 }}>
                       {new Date(appt.slot.startTime).toLocaleString("ar-EG", {
                         weekday: "long",
@@ -252,9 +309,10 @@ function DoctorAppointments() {
                         minute: "2-digit",
                       })}
                     </span>
+                    <ContactChip email={appt.patient.user?.email} phone={appt.patient.phone} />
                   </div>
                 </div>
-                <div className="row">
+                <div className="row wrap">
                   <StatusBadge status={appt.status} />
                   {appt.status === "PENDING" && (
                     <button className="btn btn-primary btn-sm" onClick={() => handleConfirm(appt.id)}>
@@ -264,6 +322,11 @@ function DoctorAppointments() {
                   {appt.status === "CONFIRMED" && (
                     <button className="btn btn-accent btn-sm" onClick={() => setCompleteTarget(appt)}>
                       إنهاء الزيارة
+                    </button>
+                  )}
+                  {(appt.status === "PENDING" || appt.status === "CONFIRMED") && (
+                    <button className="btn btn-danger btn-sm" onClick={() => setCancelTarget(appt)}>
+                      إلغاء
                     </button>
                   )}
                 </div>
@@ -281,7 +344,19 @@ function DoctorAppointments() {
             setCompleteTarget(null);
             setMessage("تم حفظ الزيارة وإنهاؤها بنجاح ✅");
             fetchAppointments();
+            fetchStats();
           }}
+        />
+      )}
+
+      {cancelTarget && (
+        <ConfirmModal
+          title="إلغاء الموعد"
+          message={`هل أنت متأكد من إلغاء موعد ${cancelTarget.patient.fullName}؟ لا يمكن التراجع عن هذا الإجراء.`}
+          confirmLabel="نعم، ألغِ الموعد"
+          danger
+          onConfirm={handleCancel}
+          onClose={() => setCancelTarget(null)}
         />
       )}
     </div>

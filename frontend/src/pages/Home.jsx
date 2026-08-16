@@ -39,13 +39,13 @@ function DoctorHome({ user }) {
           <h3>مواعيدي</h3>
           <p className="muted">أكّد أو أكمل مواعيد المرضى.</p>
         </Link>
+        <Link to="/patients" className="card">
+          <h3>مرضاي</h3>
+          <p className="muted">تصفح مرضاك وتاريخهم الطبي.</p>
+        </Link>
         <Link to="/weekly-schedule" className="card">
           <h3>الجدول الأسبوعي</h3>
           <p className="muted">حدّد أيام وساعات شغلك الأسبوعية.</p>
-        </Link>
-        <Link to="/create-slots" className="card">
-          <h3>إضافة مواعيد</h3>
-          <p className="muted">أضف مواعيد فاضية ليوم معين بسرعة.</p>
         </Link>
       </div>
     </>

@@ -98,7 +98,11 @@ export class AppointmentsService {
     return this.prisma.appointment.findMany({
       where: { doctorId: doctor.id },
       include: {
-        patient: true,
+        patient: {
+          include: {
+            user: { select: { email: true } },
+          },
+        },
         slot: true,
       },
     });
@@ -119,7 +123,11 @@ export class AppointmentsService {
     return this.prisma.appointment.findMany({
       where: { patientId: patient.id },
       include: {
-        doctor: true,
+        doctor: {
+          include: {
+            user: { select: { email: true } },
+          },
+        },
         slot: true,
       },
     });
@@ -166,6 +174,22 @@ export class AppointmentsService {
   // =========================
   async cancelAppointment(id: number, currentUser: JwtUser) {
     await this.accessControl.verifyPatientAppointment(id, currentUser);
+
+    return this.prisma.appointment.update({
+      where: {
+        id,
+      },
+      data: {
+        status: AppointmentStatus.CANCELLED,
+      },
+    });
+  }
+
+  // =========================
+  // CANCEL (BY DOCTOR)
+  // =========================
+  async cancelAppointmentByDoctor(id: number, currentUser: JwtUser) {
+    await this.accessControl.verifyDoctorAppointment(id, currentUser);
 
     return this.prisma.appointment.update({
       where: {
