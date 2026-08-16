@@ -114,9 +114,9 @@ function AdminDashboard() {
           </div>
 
           <div className="field">
-            <label>نبذة عن الدكتور</label>
+            <label>نبذة عن الدكتور (اختياري الآن)</label>
             <textarea
-              placeholder="خبرة 10 سنين في علاج أمراض القلب..."
+              placeholder="الدكتور يقدر يضيف أو يعدّل النبذة والصورة بنفسه بعد أول تسجيل دخول من صفحة (بروفايلي)"
               value={form.bio}
               onChange={(e) => update("bio", e.target.value)}
             />

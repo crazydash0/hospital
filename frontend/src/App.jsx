@@ -14,6 +14,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import DoctorProfile from "./pages/DoctorProfile";
 import MyPatients from "./pages/MyPatients";
 import PatientProfile from "./pages/PatientProfile";
+import DoctorEditProfile from "./pages/DoctorEditProfile";
 
 function App() {
   return (
@@ -94,6 +95,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["DOCTOR"]}>
               <PatientProfile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-profile"
+          element={
+            <ProtectedRoute allowedRoles={["DOCTOR"]}>
+              <DoctorEditProfile />
             </ProtectedRoute>
           }
         />

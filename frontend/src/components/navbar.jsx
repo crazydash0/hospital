@@ -31,6 +31,7 @@ function Navbar() {
     { to: "/patients", label: "مرضاي" },
     { to: "/weekly-schedule", label: "الجدول الأسبوعي" },
     { to: "/create-slots", label: "إضافة مواعيد" },
+    { to: "/my-profile", label: "بروفايلي" },
   ];
 
   const adminLinks = [

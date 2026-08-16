@@ -29,6 +29,7 @@ model Doctor {
   specialty      String
   price          Float
   bio            String?
+  photoUrl       String?
   appointments   Appointment[]
   slots          AppointmentSlot[]
   user           User                    @relation(fields: [userId], references: [id])

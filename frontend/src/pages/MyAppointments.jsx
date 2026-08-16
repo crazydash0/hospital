@@ -4,6 +4,7 @@ import api from "../api/axios";
 import StatusBadge from "../components/StatusBadge";
 import ConfirmModal from "../components/ConfirmModal";
 import ContactChip from "../components/ContactChip";
+import Avatar from "../components/Avatar";
 
 function ReviewModal({ appointment, onClose, onSubmitted }) {
   const [rating, setRating] = useState(5);
@@ -142,7 +143,7 @@ function MyAppointments() {
             <div key={appt.id} className="card">
               <div className="row between wrap">
                 <div className="row" style={{ alignItems: "flex-start" }}>
-                  <div className="doctor-avatar">{(appt.doctor.fullName || "د")[0]}</div>
+                  <Avatar src={appt.doctor.photoUrl} name={appt.doctor.fullName} />
                   <div>
                     <h3 style={{ marginBottom: 2 }}>
                       <Link to={`/doctors/${appt.doctor.id}`}>د. {appt.doctor.fullName}</Link>

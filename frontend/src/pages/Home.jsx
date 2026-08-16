@@ -47,6 +47,10 @@ function DoctorHome({ user }) {
           <h3>الجدول الأسبوعي</h3>
           <p className="muted">حدّد أيام وساعات شغلك الأسبوعية.</p>
         </Link>
+        <Link to="/my-profile" className="card">
+          <h3>بروفايلي</h3>
+          <p className="muted">أضف صورتك ونبذة عنك عشان المرضى يثقوا فيك أكتر.</p>
+        </Link>
       </div>
     </>
   );

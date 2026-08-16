@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import api from "../api/axios";
+import Avatar from "../components/Avatar";
 
 function Stars({ value }) {
   const rounded = Math.round(value || 0);
@@ -62,9 +63,7 @@ function DoctorProfile() {
     <div className="page">
       <div className="card" style={{ marginBottom: 24 }}>
         <div className="row wrap" style={{ alignItems: "flex-start", gap: 18 }}>
-          <div className="doctor-avatar" style={{ width: 66, height: 66, fontSize: 26 }}>
-            {(doctor.fullName || "د")[0]}
-          </div>
+          <Avatar src={doctor.photoUrl} name={doctor.fullName} size={72} />
           <div style={{ flex: 1, minWidth: 220 }}>
             <h1 style={{ marginBottom: 4 }}>د. {doctor.fullName}</h1>
             <p className="muted" style={{ marginBottom: 8 }}>{doctor.specialty}</p>

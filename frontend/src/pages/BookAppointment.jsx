@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import api from "../api/axios";
+import Avatar from "../components/Avatar";
 
 function BookAppointment() {
   const [doctors, setDoctors] = useState([]);
@@ -125,9 +126,7 @@ function BookAppointment() {
                   onClick={() => setSelectedDoctor(doctor)}
                 >
                   <div className="row" style={{ marginBottom: 10 }}>
-                    <div className="doctor-avatar">
-                      {(doctor.fullName || "د")[0]}
-                    </div>
+                    <Avatar src={doctor.photoUrl} name={doctor.fullName} />
                     <div>
                       <h3 style={{ marginBottom: 2 }}>
                         <Link to={`/doctors/${doctor.id}`} onClick={(e) => e.stopPropagation()}>

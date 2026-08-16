@@ -6,10 +6,15 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '@prisma/client';
 import { CreateDoctorDto } from '../auth/dto/create-doctor.dto';
+import { UpdateDoctorProfileDto } from './dto/update-doctor-profile.dto';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class DoctorsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
 
   async createDoctor(userId: number, dto: CreateDoctorDto) {
     const user = await this.prisma.user.findUnique({
@@ -79,5 +84,48 @@ export class DoctorsService {
     }
 
     return doctor;
+  }
+
+  private async getDoctorByUserId(userId: number) {
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { userId },
+    });
+
+    if (!doctor) {
+      throw new NotFoundException('Doctor profile not found');
+    }
+
+    return doctor;
+  }
+
+  async getMyProfile(userId: number) {
+    return this.getDoctorByUserId(userId);
+  }
+
+  async updateOwnProfile(userId: number, dto: UpdateDoctorProfileDto) {
+    const doctor = await this.getDoctorByUserId(userId);
+
+    return this.prisma.doctor.update({
+      where: { id: doctor.id },
+      data: {
+        bio: dto.bio ?? undefined,
+        specialty: dto.specialty ?? undefined,
+        price: dto.price ?? undefined,
+      },
+    });
+  }
+
+  async updateOwnPhoto(userId: number, file: Express.Multer.File) {
+    const doctor = await this.getDoctorByUserId(userId);
+
+    const uploadResult = await this.cloudinary.uploadMedicalFile(
+      file,
+      'doctor-photos',
+    );
+
+    return this.prisma.doctor.update({
+      where: { id: doctor.id },
+      data: { photoUrl: uploadResult.secure_url },
+    });
   }
 }
