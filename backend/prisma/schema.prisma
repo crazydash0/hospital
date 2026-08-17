@@ -11,12 +11,9 @@ model User {
   id       Int    @id @default(autoincrement())
   email    String @unique
   password String
-  // Kept for backward compatibility; clinic-scoped authorization uses ClinicMembership.role.
   role     Role   @default(PATIENT)
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   doctor       Doctor?
   patient      Patient?
   memberships  ClinicMembership[]
@@ -35,11 +32,11 @@ model Clinic {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   memberships     ClinicMembership[]
   doctors         Doctor[]
   patients        ClinicPatient[]
   appointments    Appointment[]
+  slots           AppointmentSlot[]
   medicalRecords  MedicalRecord[]
   templates       MedicalRecordTemplate[]
   reviews         Review[]
@@ -47,7 +44,6 @@ model Clinic {
   weeklySchedules WeeklyScheduleTemplate[]
   leaves          DoctorLeave[]
   payments        Payment[]
-
   @@index([isActive])
 }
 
@@ -58,10 +54,8 @@ model ClinicMembership {
   role      ClinicRole
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@unique([clinicId, userId])
   @@index([userId])
   @@index([clinicId, role])
@@ -74,10 +68,8 @@ model ClinicPatient {
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
   @@unique([clinicId, patientId])
   @@index([patientId])
 }
@@ -103,10 +95,8 @@ model Doctor {
   medicalRecords MedicalRecord[]
   templates      MedicalRecordTemplate[]
   reviews        Review[]
-
   weeklyTemplates WeeklyScheduleTemplate[]
   leaves          DoctorLeave[]
-
   @@index([clinicId])
 }
 
@@ -143,7 +133,6 @@ model Appointment {
   medicalRecord MedicalRecord?
   review        Review?
   payments      Payment[]
-
   @@index([clinicId])
   @@index([doctorId])
   @@index([patientId])
@@ -160,7 +149,6 @@ model AppointmentSlot {
   appointment Appointment?
   clinic      Clinic?      @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   doctor      Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-
   @@index([clinicId, startTime])
   @@index([doctorId, startTime])
 }
@@ -176,14 +164,12 @@ model MedicalRecord {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
   additionalInstructions String?
-
   clinic        Clinic?               @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   attachments   MedicalAttachment[]
   prescriptions Prescription[]
   appointment   Appointment            @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   doctor        Doctor                @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient       Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
   @@index([clinicId])
   @@index([patientId])
   @@index([doctorId])
@@ -199,7 +185,6 @@ model Prescription {
   instructions    String?
   createdAt       DateTime      @default(now())
   medicalRecord   MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
-
   @@index([medicalRecordId])
 }
 
@@ -217,7 +202,6 @@ model MedicalRecordTemplate {
   clinic      Clinic?                     @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   doctor      Doctor?                     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   items       MedicalRecordTemplateItem[]
-
   @@index([clinicId])
   @@index([doctorId])
   @@index([visibility])
@@ -236,7 +220,6 @@ model MedicalRecordTemplateItem {
   options      Json?
   displayOrder Int
   template     MedicalRecordTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-
   @@index([templateId])
 }
 
@@ -258,7 +241,6 @@ model Review {
   appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   doctor        Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient       Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
   @@index([clinicId])
   @@index([doctorId])
   @@index([patientId])
@@ -266,32 +248,25 @@ model Review {
 
 model MedicalAttachment {
   id Int @id @default(autoincrement())
-
   clinicId        Int?
   appointmentId   Int
   medicalRecordId Int?
   uploadedById    Int
-
   type       AttachmentType
   uploadedBy UploadedBy
-
   fileName String
   publicId String
   fileUrl  String
   mimeType String
   size     Int
   notes    String?
-
   isDeleted Boolean   @default(false)
   deletedAt DateTime?
-
   createdAt DateTime @default(now())
-
   clinic        Clinic?         @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   appointment    Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   medicalRecord MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
   uploader      User            @relation(fields: [uploadedById], references: [id])
-
   @@index([clinicId])
   @@index([appointmentId])
   @@index([medicalRecordId])
@@ -308,10 +283,8 @@ model WeeklyScheduleTemplate {
   endHour   Int
   duration  Int    @default(30)
   note      String?
-
   clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   doctor Doctor  @relation(fields: [doctorId], references: [id])
-
   @@unique([doctorId, dayOfWeek])
   @@index([clinicId])
 }
@@ -321,10 +294,8 @@ model DoctorLeave {
   clinicId Int?
   doctorId Int
   date     DateTime
-
   clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   doctor Doctor  @relation(fields: [doctorId], references: [id])
-
   @@unique([doctorId, date])
   @@index([clinicId])
 }
@@ -339,79 +310,19 @@ model Payment {
   reference     String?
   paidAt        DateTime      @default(now())
   createdAt     DateTime      @default(now())
-
   clinic      Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-
   @@index([clinicId, paidAt])
   @@index([appointmentId])
 }
 
-enum Role {
-  DOCTOR
-  PATIENT
-  ADMIN
-}
-
-enum ClinicRole {
-  OWNER
-  DOCTOR
-  RECEPTIONIST
-  STAFF
-}
-
-enum Gender {
-  MALE
-  FEMALE
-}
-
-enum AppointmentStatus {
-  PENDING
-  CONFIRMED
-  CANCELLED
-  COMPLETED
-  NO_SHOW
-}
-
-enum PaymentStatus {
-  PAID
-  REFUNDED
-  VOID
-}
-
-enum PaymentMethod {
-  CASH
-  CARD
-  ONLINE
-}
-
-enum TemplateVisibility {
-  PRIVATE
-  PUBLIC
-}
-
-enum FieldType {
-  TEXT
-  TEXTAREA
-  NUMBER
-  DATE
-  CHECKBOX
-  SELECT
-  VITAL
-}
-
-enum AttachmentType {
-  PRESCRIPTION
-  LAB_RESULT
-  XRAY
-  MRI
-  CT_SCAN
-  ULTRASOUND
-  REPORT
-  OTHER
-}
-
-enum UploadedBy {
-  DOCTOR
-  PATIENT
-}
+enum Role { DOCTOR PATIENT ADMIN }
+enum ClinicRole { OWNER DOCTOR RECEPTIONIST STAFF }
+enum Gender { MALE FEMALE }
+enum AppointmentStatus { PENDING CONFIRMED CANCELLED COMPLETED NO_SHOW }
+enum PaymentStatus { PAID REFUNDED VOID }
+enum PaymentMethod { CASH CARD ONLINE }
+enum TemplateVisibility { PRIVATE PUBLIC }
+enum FieldType { TEXT TEXTAREA NUMBER DATE CHECKBOX SELECT VITAL }
+enum AttachmentType { PRESCRIPTION LAB_RESULT XRAY MRI CT_SCAN ULTRASOUND REPORT OTHER }
+enum UploadedBy { DOCTOR PATIENT }
