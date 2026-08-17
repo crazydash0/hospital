@@ -77,7 +77,7 @@ model ClinicPatient {
 model Doctor {
   id             Int                     @id @default(autoincrement())
   userId         Int                     @unique
-  clinicId       Int?
+  clinicId       Int
   fullName       String
   specialty      String
   price          Float
@@ -91,7 +91,7 @@ model Doctor {
   appointments   Appointment[]
   slots          AppointmentSlot[]
   user           User                    @relation(fields: [userId], references: [id])
-  clinic         Clinic?                 @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  clinic         Clinic                  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   medicalRecords MedicalRecord[]
   templates      MedicalRecordTemplate[]
   reviews        Review[]
@@ -117,7 +117,7 @@ model Patient {
 
 model Appointment {
   id            Int                 @id @default(autoincrement())
-  clinicId      Int?
+  clinicId      Int
   doctorId      Int
   patientId     Int
   date          DateTime
@@ -125,7 +125,7 @@ model Appointment {
   status        AppointmentStatus   @default(PENDING)
   slotId        Int                 @unique
   meetingLink   String?
-  clinic        Clinic?             @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  clinic        Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   doctor        Doctor              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient       Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
   slot          AppointmentSlot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
@@ -141,13 +141,13 @@ model Appointment {
 
 model AppointmentSlot {
   id          Int          @id @default(autoincrement())
-  clinicId    Int?
+  clinicId    Int
   doctorId    Int
   startTime   DateTime
   endTime     DateTime
   isBooked    Boolean      @default(false)
   appointment Appointment?
-  clinic      Clinic?      @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  clinic      Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   doctor      Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   @@index([clinicId, startTime])
   @@index([doctorId, startTime])
@@ -155,7 +155,7 @@ model AppointmentSlot {
 
 model MedicalRecord {
   id                     Int      @id @default(autoincrement())
-  clinicId               Int?
+  clinicId               Int
   patientId              Int
   doctorId               Int
   appointmentId          Int      @unique
@@ -164,12 +164,12 @@ model MedicalRecord {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
   additionalInstructions String?
-  clinic        Clinic?               @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  clinic        Clinic                 @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   attachments   MedicalAttachment[]
   prescriptions Prescription[]
-  appointment   Appointment            @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  doctor        Doctor                @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  patient       Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointment   Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  doctor        Doctor                 @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient       Patient                @relation(fields: [patientId], references: [id], onDelete: Cascade)
   @@index([clinicId])
   @@index([patientId])
   @@index([doctorId])
@@ -225,7 +225,7 @@ model MedicalRecordTemplateItem {
 
 model Review {
   id            Int         @id @default(autoincrement())
-  clinicId      Int?
+  clinicId      Int
   appointmentId Int         @unique
   doctorId      Int
   patientId     Int
@@ -237,7 +237,7 @@ model Review {
   isAnonymous   Boolean     @default(false)
   isHidden      Boolean     @default(false)
   repliedAt     DateTime?
-  clinic        Clinic?     @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  clinic        Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   doctor        Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient       Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
@@ -248,7 +248,7 @@ model Review {
 
 model MedicalAttachment {
   id Int @id @default(autoincrement())
-  clinicId        Int?
+  clinicId        Int
   appointmentId   Int
   medicalRecordId Int?
   uploadedById    Int
@@ -263,10 +263,10 @@ model MedicalAttachment {
   isDeleted Boolean   @default(false)
   deletedAt DateTime?
   createdAt DateTime @default(now())
-  clinic        Clinic?         @relation(fields: [clinicId], references: [id], onDelete: SetNull)
-  appointment    Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointment    Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   medicalRecord MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
-  uploader      User            @relation(fields: [uploadedById], references: [id])
+  uploader      User           @relation(fields: [uploadedById], references: [id])
   @@index([clinicId])
   @@index([appointmentId])
   @@index([medicalRecordId])
@@ -276,14 +276,14 @@ model MedicalAttachment {
 
 model WeeklyScheduleTemplate {
   id        Int    @id @default(autoincrement())
-  clinicId  Int?
+  clinicId  Int
   doctorId  Int
   dayOfWeek Int
   startHour Int
   endHour   Int
   duration  Int    @default(30)
   note      String?
-  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   doctor Doctor  @relation(fields: [doctorId], references: [id])
   @@unique([doctorId, dayOfWeek])
   @@index([clinicId])
@@ -291,10 +291,10 @@ model WeeklyScheduleTemplate {
 
 model DoctorLeave {
   id       Int      @id @default(autoincrement())
-  clinicId Int?
+  clinicId Int
   doctorId Int
   date     DateTime
-  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   doctor Doctor  @relation(fields: [doctorId], references: [id])
   @@unique([doctorId, date])
   @@index([clinicId])
