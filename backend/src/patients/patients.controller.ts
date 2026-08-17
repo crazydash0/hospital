@@ -14,10 +14,7 @@ export class PatientsController {
   @Roles(Role.DOCTOR)
   @Get(':id/profile')
   getProfile(@Req() req, @Param('id') id: string) {
-    return this.service.getProfile(
-      req.user, // ✅ بدل req.user.userId
-      Number(id),
-    );
+    return this.service.getProfile(req.user, Number(id));
   }
 
   @Roles(Role.PATIENT)
@@ -35,6 +32,6 @@ export class PatientsController {
   @Roles(Role.DOCTOR)
   @Get()
   getPatients(@Req() req) {
-    return this.service.getDoctorPatients(req.user.userId);
+    return this.service.getDoctorPatients(req.user.userId, req.user);
   }
 }
