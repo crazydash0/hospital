@@ -1,0 +1,284 @@
+From fa1cdfa6aaf5893a68e35467d2f4e9350b544100 Mon Sep 17 00:00:00 2001
+From: Claude Assistant <assistant@example.com>
+Date: Mon, 17 Aug 2026 08:49:26 +0000
+Subject: [PATCH] add new appointment alerts for doctor: red dot on nav, in-app
+ toast, and browser notification
+
+---
+ .../src/components/NewAppointmentToast.jsx    |  67 +++++++++
+ frontend/src/components/navbar.jsx            | 130 +++++++++++++++++-
+ frontend/src/utils/appointmentAlerts.js       |   9 ++
+ 3 files changed, 203 insertions(+), 3 deletions(-)
+ create mode 100644 frontend/src/components/NewAppointmentToast.jsx
+ create mode 100644 frontend/src/utils/appointmentAlerts.js
+
+diff --git a/frontend/src/components/NewAppointmentToast.jsx b/frontend/src/components/NewAppointmentToast.jsx
+new file mode 100644
+index 0000000..bd8fdc1
+--- /dev/null
++++ b/frontend/src/components/NewAppointmentToast.jsx
+@@ -0,0 +1,67 @@
++import { useEffect } from "react";
++
++function NewAppointmentToast({ count, onDismiss, onView }) {
++  useEffect(() => {
++    const timer = setTimeout(onDismiss, 7000);
++    return () => clearTimeout(timer);
++  }, [onDismiss]);
++
++  return (
++    <div
++      style={{
++        position: "fixed",
++        bottom: 20,
++        left: 20,
++        zIndex: 100,
++        background: "var(--teal-900)",
++        color: "#fff",
++        borderRadius: "var(--radius)",
++        padding: "14px 18px",
++        boxShadow: "var(--shadow-md)",
++        maxWidth: 320,
++        display: "flex",
++        alignItems: "center",
++        gap: 12,
++      }}
++    >
++      <span style={{ fontSize: 22 }}>🔔</span>
++      <div style={{ flex: 1 }}>
++        <strong style={{ display: "block", fontSize: 14.5 }}>
++          {count > 1 ? `عندك ${count} حجوزات جديدة` : "عندك حجز جديد"}
++        </strong>
++        <button
++          onClick={onView}
++          style={{
++            background: "none",
++            border: "none",
++            color: "var(--teal-100)",
++            fontSize: 13,
++            fontWeight: 700,
++            cursor: "pointer",
++            padding: 0,
++            marginTop: 4,
++            textDecoration: "underline",
++          }}
++        >
++          عرض المواعيد
++        </button>
++      </div>
++      <button
++        onClick={onDismiss}
++        style={{
++          background: "none",
++          border: "none",
++          color: "var(--teal-100)",
++          fontSize: 18,
++          cursor: "pointer",
++          padding: 0,
++        }}
++        aria-label="إغلاق"
++      >
++        ×
++      </button>
++    </div>
++  );
++}
++
++export default NewAppointmentToast;
+diff --git a/frontend/src/components/navbar.jsx b/frontend/src/components/navbar.jsx
+index 96049d5..f3de6c9 100644
+--- a/frontend/src/components/navbar.jsx
++++ b/frontend/src/components/navbar.jsx
+@@ -1,6 +1,9 @@
+ import { AuthContext } from "../context/AuthContext";
+-import { useContext } from "react";
+-import { NavLink, useNavigate } from "react-router-dom";
++import { useContext, useEffect, useRef, useState } from "react";
++import { NavLink, useNavigate, useLocation } from "react-router-dom";
++import api from "../api/axios";
++import NewAppointmentToast from "./NewAppointmentToast";
++import { getLastSeenAppointmentId, setLastSeenAppointmentId } from "../utils/appointmentAlerts";
+ 
+ const ROLE_LABELS = {
+   PATIENT: "مريض",
+@@ -8,9 +11,101 @@ const ROLE_LABELS = {
+   ADMIN: "أدمن",
+ };
+ 
++const POLL_INTERVAL_MS = 20000;
++
++function useNewAppointmentsAlert(user) {
++  const [hasNew, setHasNew] = useState(false);
++  const [toast, setToast] = useState(null);
++  const location = useLocation();
++  const notifiedIdsRef = useRef(new Set());
++  const notificationAskedRef = useRef(false);
++  const isFirstPollRef = useRef(true);
++
++  useEffect(() => {
++    if (!user || user.role !== "DOCTOR") return;
++
++    // اطلب إذن إشعارات المتصفح مرة واحدة بس
++    if (!notificationAskedRef.current && "Notification" in window && Notification.permission === "default") {
++      notificationAskedRef.current = true;
++      Notification.requestPermission();
++    }
++
++    let cancelled = false;
++
++    async function poll() {
++      try {
++        const response = await api.get("/appointments/doctor");
++        if (cancelled) return;
++
++        const appointments = response.data;
++        if (appointments.length === 0) return;
++
++        const maxId = Math.max(...appointments.map((a) => a.id));
++        const lastSeen = getLastSeenAppointmentId();
++
++        // أول مرة نفحص فيها بعد إضافة الميزة دي، لا نبلّغ عن مواعيد قديمة
++        // كانت موجودة أصلًا؛ بس نأسس نقطة البداية بهدوء.
++        if (isFirstPollRef.current) {
++          isFirstPollRef.current = false;
++          appointments.forEach((a) => notifiedIdsRef.current.add(a.id));
++          if (lastSeen === 0) {
++            setLastSeenAppointmentId(maxId);
++            return;
++          }
++        }
++
++        // لو الدكتور فاتح صفحة مواعيده دلوقتي، اعتبر كل حاجة متشافة
++        if (location.pathname === "/doctor-appointments") {
++          setLastSeenAppointmentId(maxId);
++          setHasNew(false);
++          return;
++        }
++
++        const newOnes = appointments.filter(
++          (a) => a.id > lastSeen && !notifiedIdsRef.current.has(a.id)
++        );
++
++        if (newOnes.length > 0) {
++          newOnes.forEach((a) => notifiedIdsRef.current.add(a.id));
++          setHasNew(true);
++          setToast({ count: newOnes.length });
++
++          if ("Notification" in window && Notification.permission === "granted") {
++            new Notification("عيادتي — حجز جديد", {
++              body:
++                newOnes.length > 1
++                  ? `عندك ${newOnes.length} حجوزات جديدة`
++                  : `${newOnes[0].patient?.fullName || "مريض"} حجز معاك موعد جديد`,
++            });
++          }
++        } else if (maxId > lastSeen) {
++          setHasNew(true);
++        }
++      } catch (err) {
++        console.log(err);
++      }
++    }
++
++    poll();
++    const interval = setInterval(poll, POLL_INTERVAL_MS);
++    return () => {
++      cancelled = true;
++      clearInterval(interval);
++    };
++  }, [user, location.pathname]);
++
++  function markSeen() {
++    setHasNew(false);
++    setToast(null);
++  }
++
++  return { hasNew, toast, dismissToast: () => setToast(null), markSeen };
++}
++
+ function Navbar() {
+   const { user, setUser } = useContext(AuthContext);
+   const navigate = useNavigate();
++  const { hasNew, toast, dismissToast, markSeen } = useNewAppointmentsAlert(user);
+ 
+   function handleLogout() {
+     localStorage.removeItem("token");
+@@ -18,6 +113,12 @@ function Navbar() {
+     navigate("/login");
+   }
+ 
++  function goToAppointments() {
++    dismissToast();
++    markSeen();
++    navigate("/doctor-appointments");
++  }
++
+   const patientLinks = [
+     { to: "/", label: "الرئيسية" },
+     { to: "/book", label: "احجز موعد" },
+@@ -27,7 +128,7 @@ function Navbar() {
+ 
+   const doctorLinks = [
+     { to: "/", label: "الرئيسية" },
+-    { to: "/doctor-appointments", label: "مواعيدي" },
++    { to: "/doctor-appointments", label: "مواعيدي", alert: hasNew },
+     { to: "/patients", label: "مرضاي" },
+     { to: "/weekly-schedule", label: "الجدول الأسبوعي" },
+     { to: "/create-slots", label: "إضافة مواعيد" },
+@@ -66,8 +167,23 @@ function Navbar() {
+                 className={({ isActive }) =>
+                   isActive ? "navbar-link active" : "navbar-link"
+                 }
++                style={{ position: "relative" }}
+               >
+                 {link.label}
++                {link.alert && (
++                  <span
++                    style={{
++                      position: "absolute",
++                      top: 2,
++                      right: 2,
++                      width: 9,
++                      height: 9,
++                      borderRadius: "50%",
++                      background: "var(--rose-600)",
++                      border: "2px solid var(--surface)",
++                    }}
++                  />
++                )}
+               </NavLink>
+             ))}
+           </div>
+@@ -94,6 +210,14 @@ function Navbar() {
+           </div>
+         )}
+       </div>
++
++      {toast && (
++        <NewAppointmentToast
++          count={toast.count}
++          onDismiss={dismissToast}
++          onView={goToAppointments}
++        />
++      )}
+     </nav>
+   );
+ }
+diff --git a/frontend/src/utils/appointmentAlerts.js b/frontend/src/utils/appointmentAlerts.js
+new file mode 100644
+index 0000000..e1cd5cf
+--- /dev/null
++++ b/frontend/src/utils/appointmentAlerts.js
+@@ -0,0 +1,9 @@
++const STORAGE_KEY = "lastSeenAppointmentId";
++
++export function getLastSeenAppointmentId() {
++  return Number(localStorage.getItem(STORAGE_KEY) || 0);
++}
++
++export function setLastSeenAppointmentId(id) {
++  localStorage.setItem(STORAGE_KEY, String(id));
++}
+-- 
+2.43.0
+
