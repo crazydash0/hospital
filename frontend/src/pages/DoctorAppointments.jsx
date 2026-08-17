@@ -391,6 +391,30 @@ function DoctorAppointments() {
         <p className="subtitle">أكّد المواعيد الجديدة، وسجّل التشخيص والروشتة بعد كل زيارة.</p>
       </div>
 
+      <div
+        className="card row wrap between"
+        style={{
+          marginBottom: 24,
+          background: "var(--teal-50)",
+          borderColor: "var(--teal-100)",
+        }}
+      >
+        <div>
+          <strong style={{ color: "var(--teal-900)" }}>🎥 عايز تعمل جلسات أونلاين مع مرضاك؟</strong>
+          <p className="muted" style={{ fontSize: 13.5, marginTop: 2 }}>
+            اعمل حساب Zoom مجاني الأول عشان تقدر تولّد روابط الجلسات تلقائيًا من هنا.
+          </p>
+        </div>
+        <a
+          href="https://zoom.us/signup"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-primary btn-sm"
+        >
+          اعمل حساب Zoom مجاني
+        </a>
+      </div>
+
       <StatsBar stats={stats} />
 
       {message && <div className="alert alert-success">{message}</div>}
