@@ -117,6 +117,31 @@ function DoctorEditProfile() {
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
+      <div
+        className="card row wrap between"
+        style={{
+          maxWidth: 620,
+          marginBottom: 20,
+          background: "var(--teal-50)",
+          borderColor: "var(--teal-100)",
+        }}
+      >
+        <div>
+          <strong style={{ color: "var(--teal-900)" }}>🎥 الجلسات الأونلاين</strong>
+          <p className="muted" style={{ fontSize: 13.5, marginTop: 2 }}>
+            اعمل حساب Zoom مجاني عشان تقدر تولّد روابط جلسات أونلاين مع مرضاك بضغطة زرار.
+          </p>
+        </div>
+        <a
+          href="https://zoom.us/signup"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-primary btn-sm"
+        >
+          اعمل حساب Zoom مجاني
+        </a>
+      </div>
+
       <div className="card" style={{ maxWidth: 620 }}>
         <div className="row" style={{ marginBottom: 24, gap: 18 }}>
           <Avatar src={profile?.photoUrl} name={profile?.fullName} size={84} />
