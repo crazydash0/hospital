@@ -11,20 +11,81 @@ model User {
   id       Int    @id @default(autoincrement())
   email    String @unique
   password String
+  // Kept for backward compatibility; clinic-scoped authorization uses ClinicMembership.role.
   role     Role   @default(PATIENT)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  doctor  Doctor?
-  patient Patient?
+  doctor       Doctor?
+  patient      Patient?
+  memberships  ClinicMembership[]
+  attachments  MedicalAttachment[]
+}
 
-  attachments MedicalAttachment[]
+model Clinic {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  phone     String?
+  address   String?
+  timezone  String   @default("Africa/Cairo")
+  currency  String   @default("EGP")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships     ClinicMembership[]
+  doctors         Doctor[]
+  patients        ClinicPatient[]
+  appointments    Appointment[]
+  medicalRecords  MedicalRecord[]
+  templates       MedicalRecordTemplate[]
+  reviews         Review[]
+  attachments     MedicalAttachment[]
+  weeklySchedules WeeklyScheduleTemplate[]
+  leaves          DoctorLeave[]
+  payments        Payment[]
+
+  @@index([isActive])
+}
+
+model ClinicMembership {
+  id        Int       @id @default(autoincrement())
+  clinicId  Int
+  userId    Int
+  role      ClinicRole
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, userId])
+  @@index([userId])
+  @@index([clinicId, role])
+}
+
+model ClinicPatient {
+  id        Int      @id @default(autoincrement())
+  clinicId  Int
+  patientId Int
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, patientId])
+  @@index([patientId])
 }
 
 model Doctor {
   id             Int                     @id @default(autoincrement())
   userId         Int                     @unique
+  clinicId       Int?
   fullName       String
   specialty      String
   price          Float
@@ -38,12 +99,15 @@ model Doctor {
   appointments   Appointment[]
   slots          AppointmentSlot[]
   user           User                    @relation(fields: [userId], references: [id])
+  clinic         Clinic?                 @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   medicalRecords MedicalRecord[]
   templates      MedicalRecordTemplate[]
   reviews        Review[]
 
   weeklyTemplates WeeklyScheduleTemplate[]
   leaves          DoctorLeave[]
+
+  @@index([clinicId])
 }
 
 model Patient {
@@ -58,10 +122,12 @@ model Patient {
   medicalRecords MedicalRecord[]
   user           User            @relation(fields: [userId], references: [id])
   reviews        Review[]
+  clinics        ClinicPatient[]
 }
 
 model Appointment {
   id            Int                 @id @default(autoincrement())
+  clinicId      Int?
   doctorId      Int
   patientId     Int
   date          DateTime
@@ -69,29 +135,39 @@ model Appointment {
   status        AppointmentStatus   @default(PENDING)
   slotId        Int                 @unique
   meetingLink   String?
+  clinic        Clinic?             @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   doctor        Doctor              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient       Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
   slot          AppointmentSlot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
   attachments   MedicalAttachment[]
   medicalRecord MedicalRecord?
   review        Review?
+  payments      Payment[]
 
+  @@index([clinicId])
   @@index([doctorId])
   @@index([patientId])
+  @@index([clinicId, date])
 }
 
 model AppointmentSlot {
   id          Int          @id @default(autoincrement())
+  clinicId    Int?
   doctorId    Int
   startTime   DateTime
   endTime     DateTime
   isBooked    Boolean      @default(false)
   appointment Appointment?
+  clinic      Clinic?      @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   doctor      Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, startTime])
+  @@index([doctorId, startTime])
 }
 
 model MedicalRecord {
   id                     Int      @id @default(autoincrement())
+  clinicId               Int?
   patientId              Int
   doctorId               Int
   appointmentId          Int      @unique
@@ -101,13 +177,14 @@ model MedicalRecord {
   updatedAt              DateTime @updatedAt
   additionalInstructions String?
 
+  clinic        Clinic?               @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   attachments   MedicalAttachment[]
   prescriptions Prescription[]
+  appointment   Appointment            @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  doctor        Doctor                @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient       Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
-  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  doctor      Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  patient     Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
+  @@index([clinicId])
   @@index([patientId])
   @@index([doctorId])
 }
@@ -128,6 +205,7 @@ model Prescription {
 
 model MedicalRecordTemplate {
   id          Int                         @id @default(autoincrement())
+  clinicId    Int?
   name        String
   description String?
   specialty   String?
@@ -136,9 +214,11 @@ model MedicalRecordTemplate {
   doctorId    Int?
   createdAt   DateTime                    @default(now())
   updatedAt   DateTime                    @updatedAt
+  clinic      Clinic?                     @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   doctor      Doctor?                     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   items       MedicalRecordTemplateItem[]
 
+  @@index([clinicId])
   @@index([doctorId])
   @@index([visibility])
   @@index([specialty])
@@ -162,6 +242,7 @@ model MedicalRecordTemplateItem {
 
 model Review {
   id            Int         @id @default(autoincrement())
+  clinicId      Int?
   appointmentId Int         @unique
   doctorId      Int
   patientId     Int
@@ -173,10 +254,12 @@ model Review {
   isAnonymous   Boolean     @default(false)
   isHidden      Boolean     @default(false)
   repliedAt     DateTime?
+  clinic        Clinic?     @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   doctor        Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient       Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
+  @@index([clinicId])
   @@index([doctorId])
   @@index([patientId])
 }
@@ -184,6 +267,7 @@ model Review {
 model MedicalAttachment {
   id Int @id @default(autoincrement())
 
+  clinicId        Int?
   appointmentId   Int
   medicalRecordId Int?
   uploadedById    Int
@@ -203,43 +287,77 @@ model MedicalAttachment {
 
   createdAt DateTime @default(now())
 
-  appointment   Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  clinic        Clinic?         @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  appointment    Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   medicalRecord MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
-  uploader      User           @relation(fields: [uploadedById], references: [id])
+  uploader      User            @relation(fields: [uploadedById], references: [id])
 
+  @@index([clinicId])
   @@index([appointmentId])
   @@index([medicalRecordId])
   @@index([uploadedById])
   @@index([isDeleted])
 }
+
 model WeeklyScheduleTemplate {
   id        Int    @id @default(autoincrement())
+  clinicId  Int?
   doctorId  Int
-  dayOfWeek Int    // 0 = الأحد, 1 = الاتنين ... 6 = السبت
+  dayOfWeek Int
   startHour Int
   endHour   Int
   duration  Int    @default(30)
   note      String?
 
-  doctor    Doctor @relation(fields: [doctorId], references: [id])
+  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  doctor Doctor  @relation(fields: [doctorId], references: [id])
 
   @@unique([doctorId, dayOfWeek])
+  @@index([clinicId])
 }
 
 model DoctorLeave {
   id       Int      @id @default(autoincrement())
+  clinicId Int?
   doctorId Int
   date     DateTime
 
-  doctor   Doctor   @relation(fields: [doctorId], references: [id])
+  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  doctor Doctor  @relation(fields: [doctorId], references: [id])
 
   @@unique([doctorId, date])
+  @@index([clinicId])
+}
+
+model Payment {
+  id            Int           @id @default(autoincrement())
+  clinicId      Int
+  appointmentId Int
+  amount        Float
+  status        PaymentStatus @default(PAID)
+  method        PaymentMethod @default(CASH)
+  reference     String?
+  paidAt        DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+
+  clinic      Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, paidAt])
+  @@index([appointmentId])
 }
 
 enum Role {
   DOCTOR
   PATIENT
   ADMIN
+}
+
+enum ClinicRole {
+  OWNER
+  DOCTOR
+  RECEPTIONIST
+  STAFF
 }
 
 enum Gender {
@@ -252,6 +370,19 @@ enum AppointmentStatus {
   CONFIRMED
   CANCELLED
   COMPLETED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PAID
+  REFUNDED
+  VOID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  ONLINE
 }
 
 enum TemplateVisibility {
