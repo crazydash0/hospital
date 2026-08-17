@@ -7,12 +7,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AppointmentStatus } from '@prisma/client';
 import { AccessControlService } from '../common/profanity/access-control/access-control.service';
 import { JwtUser } from '../common/profanity/access-control/type/jwt-user';
+import { ZoomService } from '../zoom/zoom.service';
 
 @Injectable()
 export class AppointmentsService {
   constructor(
     private prisma: PrismaService,
     private readonly accessControl: AccessControlService,
+    private readonly zoom: ZoomService,
   ) {}
 
   // =========================
@@ -214,6 +216,38 @@ export class AppointmentsService {
     return this.prisma.appointment.update({
       where: { id },
       data: { meetingLink },
+    });
+  }
+
+  // توليد رابط Zoom تلقائيًا من غير ما الدكتور يسيب الصفحة
+  async generateZoomMeetingLink(id: number, currentUser: JwtUser) {
+    await this.accessControl.verifyDoctorAppointment(id, currentUser);
+
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id },
+      include: { slot: true, patient: true, doctor: true },
+    });
+
+    if (!appointment) {
+      throw new NotFoundException('Appointment not found');
+    }
+
+    const meeting = await this.zoom.createMeeting({
+      topic: `كشف مع د. ${appointment.doctor.fullName} - ${appointment.patient.fullName}`,
+      startTime: appointment.slot.startTime,
+      durationMinutes: Math.max(
+        15,
+        Math.round(
+          (appointment.slot.endTime.getTime() -
+            appointment.slot.startTime.getTime()) /
+            60000,
+        ),
+      ),
+    });
+
+    return this.prisma.appointment.update({
+      where: { id },
+      data: { meetingLink: meeting.join_url },
     });
   }
 

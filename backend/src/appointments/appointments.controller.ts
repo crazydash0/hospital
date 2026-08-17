@@ -74,6 +74,13 @@ export class AppointmentsController {
     return this.service.setMeetingLink(id, req.user, body.meetingLink);
   }
 
+  // توليد رابط Zoom تلقائيًا (من غير ما الدكتور يسيب الصفحة)
+  @Roles(Role.DOCTOR)
+  @Post(':id/meeting-link/generate-zoom')
+  generateZoomMeetingLink(@Param('id', ParseIntPipe) id: number, @Req() req) {
+    return this.service.generateZoomMeetingLink(id, req.user);
+  }
+
   @Roles(Role.DOCTOR)
   @Delete(':id/meeting-link')
   removeMeetingLink(@Param('id', ParseIntPipe) id: number, @Req() req) {

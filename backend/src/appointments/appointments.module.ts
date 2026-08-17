@@ -4,8 +4,9 @@ import { AppointmentsController } from './appointments.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { AccessControlModule } from '../common/profanity/access-control/access-control.module';
+import { ZoomModule } from '../zoom/zoom.module';
 @Module({
-  imports: [PrismaModule, AuthModule, AccessControlModule],
+  imports: [PrismaModule, AuthModule, AccessControlModule, ZoomModule],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],
 })

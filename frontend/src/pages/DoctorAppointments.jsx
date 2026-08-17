@@ -173,6 +173,7 @@ function MeetingLinkControl({ appointment, onChanged }) {
   const [link, setLink] = useState(appointment.meetingLink || "");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   async function handleSave(e) {
     e.preventDefault();
@@ -192,6 +193,19 @@ function MeetingLinkControl({ appointment, onChanged }) {
       setError(err.response?.data?.message || "حصل خطأ أثناء حفظ الرابط");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleGenerateZoom() {
+    setError("");
+    setGenerating(true);
+    try {
+      await api.post(`/appointments/${appointment.id}/meeting-link/generate-zoom`);
+      onChanged();
+    } catch (err) {
+      setError(err.response?.data?.message || "تعذر توليد رابط Zoom");
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -216,7 +230,7 @@ function MeetingLinkControl({ appointment, onChanged }) {
         <div className="row wrap">
           <input
             type="text"
-            placeholder="رابط Google Meet أو Zoom"
+            placeholder="الصق رابط Google Meet هنا"
             value={link}
             onChange={(e) => setLink(e.target.value)}
             style={{ maxWidth: 320 }}
@@ -232,31 +246,47 @@ function MeetingLinkControl({ appointment, onChanged }) {
     );
   }
 
-  return appointment.meetingLink ? (
-    <div className="row wrap" style={{ marginTop: 8, gap: 8 }}>
-      <a
-        href={appointment.meetingLink}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="btn btn-accent btn-sm"
-      >
-        🎥 رابط الجلسة الأونلاين
-      </a>
-      <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)}>
-        تعديل
-      </button>
-      <button className="btn btn-danger btn-sm" onClick={handleRemove} disabled={submitting}>
-        إزالة
-      </button>
+  if (appointment.meetingLink) {
+    return (
+      <div className="row wrap" style={{ marginTop: 8, gap: 8 }}>
+        <a
+          href={appointment.meetingLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-accent btn-sm"
+        >
+          🎥 رابط الجلسة الأونلاين
+        </a>
+        <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)}>
+          تعديل
+        </button>
+        <button className="btn btn-danger btn-sm" onClick={handleRemove} disabled={submitting}>
+          إزالة
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      {error && <div className="alert alert-error" style={{ maxWidth: 320 }}>{error}</div>}
+      <div className="row wrap" style={{ gap: 8 }}>
+        <button className="btn btn-primary btn-sm" onClick={handleGenerateZoom} disabled={generating}>
+          {generating ? "جاري التوليد..." : "⚡ توليد رابط Zoom تلقائيًا"}
+        </button>
+        <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)}>
+          🎥 لصق رابط Google Meet يدوي
+        </button>
+        <a
+          href="https://zoom.us/signup"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-outline btn-sm"
+        >
+          مفيش حساب Zoom؟ اعمل واحد
+        </a>
+      </div>
     </div>
-  ) : (
-    <button
-      className="btn btn-outline btn-sm"
-      style={{ marginTop: 8 }}
-      onClick={() => setEditing(true)}
-    >
-      🎥 إضافة رابط جلسة أونلاين
-    </button>
   );
 }
 
