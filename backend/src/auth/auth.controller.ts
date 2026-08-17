@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { Public } from './public.decorator';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterDoctorDto } from './dto/register-doctor.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -11,9 +12,15 @@ export class AuthController {
   @Post('register')
   @Public()
   register(@Body() body: RegisterDto) {
-    console.log('CONTROLLER BODY:', body);
     return this.authService.register(body);
   }
+
+  @Post('register-doctor')
+  @Public()
+  registerDoctor(@Body() body: RegisterDoctorDto) {
+    return this.authService.registerDoctor(body);
+  }
+
   @Post('login')
   @Public()
   login(@Body() body: LoginDto) {
