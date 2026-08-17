@@ -30,6 +30,11 @@ model Doctor {
   price          Float
   bio            String?
   photoUrl       String?
+  facebookUrl    String?
+  instagramUrl   String?
+  whatsappUrl    String?
+  linkedinUrl    String?
+  websiteUrl     String?
   appointments   Appointment[]
   slots          AppointmentSlot[]
   user           User                    @relation(fields: [userId], references: [id])
@@ -63,6 +68,7 @@ model Appointment {
   createdAt     DateTime            @default(now())
   status        AppointmentStatus   @default(PENDING)
   slotId        Int                 @unique
+  meetingLink   String?
   doctor        Doctor              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient       Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
   slot          AppointmentSlot     @relation(fields: [slotId], references: [id], onDelete: Cascade)

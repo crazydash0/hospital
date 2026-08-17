@@ -200,6 +200,32 @@ export class AppointmentsService {
       },
     });
   }
+
+  // =========================
+  // SET / UPDATE ONLINE MEETING LINK
+  // =========================
+  async setMeetingLink(
+    id: number,
+    currentUser: JwtUser,
+    meetingLink: string,
+  ) {
+    await this.accessControl.verifyDoctorAppointment(id, currentUser);
+
+    return this.prisma.appointment.update({
+      where: { id },
+      data: { meetingLink },
+    });
+  }
+
+  // إزالة رابط الجلسة (لو الدكتور غيّر رأيه أو الميعاد بقى حضوري)
+  async removeMeetingLink(id: number, currentUser: JwtUser) {
+    await this.accessControl.verifyDoctorAppointment(id, currentUser);
+
+    return this.prisma.appointment.update({
+      where: { id },
+      data: { meetingLink: null },
+    });
+  }
   async getAvailableSlots(doctorId: number) {
     const doctor = await this.prisma.doctor.findUnique({
       where: { id: doctorId },
@@ -357,7 +383,15 @@ export class AppointmentsService {
       );
     }
 
-    const results = [];
+    const results: {
+      id: number;
+      doctorId: number;
+      dayOfWeek: number;
+      startHour: number;
+      endHour: number;
+      duration: number;
+      note: string | null;
+    }[] = [];
     for (let day = fromDay; day <= toDay; day++) {
       const result = await this.prisma.weeklyScheduleTemplate.upsert({
         where: {

@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, MinLength, Min } from 'class-validator';
+import { IsOptional, IsString, IsNumber, MinLength, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateDoctorProfileDto {
@@ -16,4 +16,29 @@ export class UpdateDoctorProfileDto {
   @IsNumber()
   @Min(0)
   price?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  facebookUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  instagramUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  whatsappUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  linkedinUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  websiteUrl?: string;
 }

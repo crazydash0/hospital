@@ -8,6 +8,7 @@ import { CreateSlotsDto } from '../auth/dto/create-slots.dto';
 import { ParseIntPipe } from '@nestjs/common';
 import { SetWeeklyTemplateDto, SetWeeklyRangeDto } from '../auth/dto/weekly-template.dto';
 import { CreateLeaveDto } from '../auth/dto/doctor-leave.dto';
+import { SetMeetingLinkDto } from '../auth/dto/set-meeting-link.dto';
 
 @ApiTags('Appointments')
 @ApiBearerAuth()
@@ -60,6 +61,23 @@ export class AppointmentsController {
   @Patch(':id/doctor-cancel')
   cancelByDoctor(@Param('id', ParseIntPipe) id: number, @Req() req) {
     return this.service.cancelAppointmentByDoctor(id, req.user);
+  }
+
+  // Doctor sets/updates the online meeting link (Google Meet / Zoom / etc.)
+  @Roles(Role.DOCTOR)
+  @Patch(':id/meeting-link')
+  setMeetingLink(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req,
+    @Body() body: SetMeetingLinkDto,
+  ) {
+    return this.service.setMeetingLink(id, req.user, body.meetingLink);
+  }
+
+  @Roles(Role.DOCTOR)
+  @Delete(':id/meeting-link')
+  removeMeetingLink(@Param('id', ParseIntPipe) id: number, @Req() req) {
+    return this.service.removeMeetingLink(id, req.user);
   }
 
   @Get('doctor/:doctorId/slots')

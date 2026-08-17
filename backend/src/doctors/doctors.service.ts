@@ -128,6 +128,11 @@ export class DoctorsService {
         bio: dto.bio ?? undefined,
         specialty: dto.specialty ?? undefined,
         price: dto.price ?? undefined,
+        facebookUrl: dto.facebookUrl ?? undefined,
+        instagramUrl: dto.instagramUrl ?? undefined,
+        whatsappUrl: dto.whatsappUrl ?? undefined,
+        linkedinUrl: dto.linkedinUrl ?? undefined,
+        websiteUrl: dto.websiteUrl ?? undefined,
       },
     });
   }
