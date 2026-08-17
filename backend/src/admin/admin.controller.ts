@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { Roles } from '../auth/roles.decorator';
@@ -14,7 +14,7 @@ export class AdminController {
 
   @Roles(Role.ADMIN)
   @Post('doctor')
-  createDoctor(@Body() body: CreateDoctorDto) {
-    return this.service.createDoctor(body);
+  createDoctor(@Req() req, @Body() body: CreateDoctorDto) {
+    return this.service.createDoctor(body, req.user?.clinicId);
   }
 }

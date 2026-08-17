@@ -36,9 +36,17 @@ export class AppointmentsController {
   @Patch(':id/complete')
   completeAppointment(@Param('id', ParseIntPipe) id: number, @Req() req) { return this.service.completeAppointment(id, req.user); }
 
+  @Roles(Role.DOCTOR)
+  @Patch(':id/no-show')
+  noShowAppointment(@Param('id', ParseIntPipe) id: number, @Req() req) { return this.service.markNoShow(id, req.user); }
+
   @Roles(Role.PATIENT)
   @Patch(':id/cancel')
   cancel(@Param('id', ParseIntPipe) id: number, @Req() req) { return this.service.cancelAppointment(id, req.user); }
+
+  @Roles(Role.PATIENT)
+  @Patch(':id/reschedule')
+  reschedule(@Param('id', ParseIntPipe) id: number, @Req() req, @Body('slotId', ParseIntPipe) slotId: number) { return this.service.rescheduleAppointment(id, slotId, req.user); }
 
   @Roles(Role.DOCTOR)
   @Patch(':id/doctor-cancel')

@@ -7,212 +7,24 @@ import ContactChip from "../components/ContactChip";
 import Avatar from "../components/Avatar";
 
 function ReviewModal({ appointment, onClose, onSubmitted }) {
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState("");
-  const [isAnonymous, setIsAnonymous] = useState(false);
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [rating, setRating] = useState(5); const [comment, setComment] = useState(""); const [isAnonymous, setIsAnonymous] = useState(false); const [error, setError] = useState(""); const [submitting, setSubmitting] = useState(false);
+  async function handleSubmit(e) { e.preventDefault(); setError(""); if (comment.trim().length < 10) { setError("التعليق لازم يكون 10 أحرف على الأقل"); return; } setSubmitting(true); try { await api.post("/reviews", { appointmentId: appointment.id, rating, comment, isAnonymous }); onSubmitted(); } catch (err) { setError(err.response?.data?.message || "حصل خطأ أثناء إرسال التقييم"); } finally { setSubmitting(false); } }
+  return <div className="modal-overlay" onClick={onClose}><div className="modal" onClick={(e) => e.stopPropagation()}><h2>قيّم زيارتك مع د. {appointment.doctor.fullName}</h2>{error && <div className="alert alert-error">{error}</div>}<form onSubmit={handleSubmit}><div className="field"><label>التقييم</label><div className="star-rating">{[1,2,3,4,5].map(n => <span key={n} className={n <= rating ? "filled" : ""} onClick={() => setRating(n)}>★</span>)}</div></div><div className="field"><label>تعليقك</label><textarea placeholder="اكتب رأيك في الدكتور والزيارة..." value={comment} onChange={(e) => setComment(e.target.value)} /></div><div className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><input type="checkbox" id="anon" checked={isAnonymous} onChange={(e) => setIsAnonymous(e.target.checked)} style={{ width: "auto" }} /><label htmlFor="anon" style={{ marginBottom: 0 }}>إرسال التقييم بدون اسمي</label></div><div className="row" style={{ marginTop: 10 }}><button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? "جاري الإرسال..." : "إرسال التقييم"}</button><button type="button" className="btn btn-outline" onClick={onClose}>إلغاء</button></div></form></div></div>;
+}
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
-    if (comment.trim().length < 10) {
-      setError("التعليق لازم يكون 10 أحرف على الأقل");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await api.post("/reviews", {
-        appointmentId: appointment.id,
-        rating,
-        comment,
-        isAnonymous,
-      });
-      onSubmitted();
-    } catch (err) {
-      setError(err.response?.data?.message || "حصل خطأ أثناء إرسال التقييم");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>قيّم زيارتك مع د. {appointment.doctor.fullName}</h2>
-        {error && <div className="alert alert-error">{error}</div>}
-        <form onSubmit={handleSubmit}>
-          <div className="field">
-            <label>التقييم</label>
-            <div className="star-rating">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <span
-                  key={n}
-                  className={n <= rating ? "filled" : ""}
-                  onClick={() => setRating(n)}
-                >
-                  ★
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="field">
-            <label>تعليقك</label>
-            <textarea
-              placeholder="اكتب رأيك في الدكتور والزيارة..."
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-            />
-          </div>
-          <div className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <input
-              type="checkbox"
-              id="anon"
-              checked={isAnonymous}
-              onChange={(e) => setIsAnonymous(e.target.checked)}
-              style={{ width: "auto" }}
-            />
-            <label htmlFor="anon" style={{ marginBottom: 0 }}>إرسال التقييم بدون اسمي</label>
-          </div>
-          <div className="row" style={{ marginTop: 10 }}>
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? "جاري الإرسال..." : "إرسال التقييم"}
-            </button>
-            <button type="button" className="btn btn-outline" onClick={onClose}>
-              إلغاء
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+function RescheduleModal({ appointment, onClose, onDone }) {
+  const [slots, setSlots] = useState([]); const [slotId, setSlotId] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false);
+  useEffect(() => { (async () => { try { const { data } = await api.get(`/appointments/doctor/${appointment.doctor.id}/slots`); setSlots(data.filter(s => s.clinicId === appointment.clinic?.id && s.startTime !== appointment.slot.startTime)); } catch (err) { setError(err.response?.data?.message || "تعذر تحميل المواعيد المتاحة"); } finally { setLoading(false); } })(); }, [appointment]);
+  async function submit(e) { e.preventDefault(); if (!slotId) return; setSaving(true); setError(""); try { await api.patch(`/appointments/${appointment.id}/reschedule`, { slotId: Number(slotId) }); onDone(); } catch (err) { setError(err.response?.data?.message || "تعذر تغيير الموعد"); } finally { setSaving(false); } }
+  return <div className="modal-overlay" onClick={onClose}><div className="modal" onClick={e => e.stopPropagation()}><h2>تغيير الموعد</h2><p className="muted">اختر موعدًا جديدًا مع د. {appointment.doctor.fullName}</p>{error && <div className="alert alert-error">{error}</div>}{loading ? <p className="muted">جاري تحميل المواعيد...</p> : <form onSubmit={submit}><div className="field"><label>الموعد الجديد</label><select value={slotId} onChange={e => setSlotId(e.target.value)} required><option value="">اختر موعدًا</option>{slots.map(s => <option key={s.id} value={s.id}>{new Date(s.startTime).toLocaleString("ar-EG", { weekday: "long", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</option>)}</select>{!slots.length && <small className="muted">لا توجد مواعيد متاحة حاليًا.</small>}</div><div className="row" style={{ marginTop: 12 }}><button className="btn btn-primary" disabled={saving || !slotId}>{saving ? "جاري التغيير..." : "تأكيد التغيير"}</button><button type="button" className="btn btn-outline" onClick={onClose}>إلغاء</button></div></form>}</div></div>;
 }
 
 function MyAppointments() {
-  const [appointments, setAppointments] = useState([]);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [reviewTarget, setReviewTarget] = useState(null);
-  const [cancelTarget, setCancelTarget] = useState(null);
-
-  async function fetchAppointments() {
-    try {
-      const response = await api.get("/appointments/patient");
-      setAppointments(response.data);
-    } catch (err) {
-      console.log(err);
-    }
-  }
-
-  useEffect(() => {
-    fetchAppointments();
-  }, []);
-
-  async function handleCancel() {
-    setError("");
-    try {
-      await api.patch(`/appointments/${cancelTarget.id}/cancel`);
-      setCancelTarget(null);
-      setMessage("تم إلغاء الموعد.");
-      fetchAppointments();
-    } catch (err) {
-      setError(err.response?.data?.message || "حصل خطأ أثناء الإلغاء");
-      setCancelTarget(null);
-    }
-  }
-
-  const sorted = [...appointments].sort(
-    (a, b) => new Date(b.slot.startTime) - new Date(a.slot.startTime)
-  );
-
-  return (
-    <div className="page">
-      <div className="page-head">
-        <h1>مواعيدي</h1>
-        <p className="subtitle">تابع كل مواعيدك الحالية والسابقة من هنا.</p>
-      </div>
-
-      {message && <div className="alert alert-success">{message}</div>}
-      {error && <div className="alert alert-error">{error}</div>}
-
-      {sorted.length === 0 ? (
-        <div className="empty-state">مفيش مواعيد محجوزة لسه.</div>
-      ) : (
-        <div className="stack">
-          {sorted.map((appt) => (
-            <div key={appt.id} className="card">
-              <div className="row between wrap">
-                <div className="row" style={{ alignItems: "flex-start" }}>
-                  <Avatar src={appt.doctor.photoUrl} name={appt.doctor.fullName} />
-                  <div>
-                    <h3 style={{ marginBottom: 2 }}>
-                      <Link to={`/doctors/${appt.doctor.id}`}>د. {appt.doctor.fullName}</Link>
-                    </h3>
-                    <span className="muted" style={{ fontSize: 14 }}>
-                      {new Date(appt.slot.startTime).toLocaleString("ar-EG", {
-                        weekday: "long",
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                    <ContactChip email={appt.doctor.user?.email} />
-                  </div>
-                </div>
-                <div className="row wrap">
-                  <StatusBadge status={appt.status} />
-                  {appt.meetingLink && (appt.status === "PENDING" || appt.status === "CONFIRMED") && (
-                    <a
-                      href={appt.meetingLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-accent btn-sm"
-                    >
-                      🎥 انضم للجلسة
-                    </a>
-                  )}
-                  {appt.status !== "CANCELLED" && appt.status !== "COMPLETED" && (
-                    <button className="btn btn-danger btn-sm" onClick={() => setCancelTarget(appt)}>
-                      إلغاء
-                    </button>
-                  )}
-                  {appt.status === "COMPLETED" && (
-                    <button className="btn btn-accent btn-sm" onClick={() => setReviewTarget(appt)}>
-                      قيّم الزيارة
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {reviewTarget && (
-        <ReviewModal
-          appointment={reviewTarget}
-          onClose={() => setReviewTarget(null)}
-          onSubmitted={() => {
-            setReviewTarget(null);
-            setMessage("شكرًا لتقييمك ✨");
-          }}
-        />
-      )}
-
-      {cancelTarget && (
-        <ConfirmModal
-          title="إلغاء الموعد"
-          message={`هل أنت متأكد من إلغاء موعدك مع د. ${cancelTarget.doctor.fullName}؟ لا يمكن التراجع عن هذا الإجراء.`}
-          confirmLabel="نعم، ألغِ الموعد"
-          danger
-          onConfirm={handleCancel}
-          onClose={() => setCancelTarget(null)}
-        />
-      )}
-    </div>
-  );
+  const [appointments, setAppointments] = useState([]); const [message, setMessage] = useState(""); const [error, setError] = useState(""); const [reviewTarget, setReviewTarget] = useState(null); const [cancelTarget, setCancelTarget] = useState(null); const [rescheduleTarget, setRescheduleTarget] = useState(null);
+  async function fetchAppointments() { try { const response = await api.get("/appointments/patient"); setAppointments(response.data); } catch (err) { console.log(err); } }
+  useEffect(() => { fetchAppointments(); }, []);
+  async function handleCancel() { setError(""); try { await api.patch(`/appointments/${cancelTarget.id}/cancel`); setCancelTarget(null); setMessage("تم إلغاء الموعد."); fetchAppointments(); } catch (err) { setError(err.response?.data?.message || "حصل خطأ أثناء الإلغاء"); setCancelTarget(null); } }
+  const sorted = [...appointments].sort((a,b) => new Date(b.slot.startTime) - new Date(a.slot.startTime));
+  return <div className="page"><div className="page-head"><h1>مواعيدي</h1><p className="subtitle">تابع كل مواعيدك الحالية والسابقة من كل العيادات.</p></div>{message && <div className="alert alert-success">{message}</div>}{error && <div className="alert alert-error">{error}</div>}{sorted.length === 0 ? <div className="empty-state">مفيش مواعيد محجوزة لسه.</div> : <div className="stack">{sorted.map(appt => <div key={appt.id} className="card"><div className="row between wrap"><div className="row" style={{ alignItems: "flex-start" }}><Avatar src={appt.doctor.photoUrl} name={appt.doctor.fullName} /><div><h3 style={{ marginBottom: 2 }}><Link to={`/doctors/${appt.doctor.id}`}>د. {appt.doctor.fullName}</Link></h3><span className="muted" style={{ fontSize: 13.5 }}>{appt.doctor.specialty}</span>{appt.clinic?.name && <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>📍 {appt.clinic.name}</div>}<span className="muted" style={{ display: "block", fontSize: 14, marginTop: 4 }}>{new Date(appt.slot.startTime).toLocaleString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span><ContactChip email={appt.doctor.user?.email} /></div></div><div className="row wrap"><StatusBadge status={appt.status}/>{appt.meetingLink && (appt.status === "PENDING" || appt.status === "CONFIRMED") && <a href={appt.meetingLink} target="_blank" rel="noopener noreferrer" className="btn btn-accent btn-sm">🎥 انضم للجلسة</a>}{(appt.status === "PENDING" || appt.status === "CONFIRMED") && <button className="btn btn-outline btn-sm" onClick={() => setRescheduleTarget(appt)}>تغيير الموعد</button>}{appt.status !== "CANCELLED" && appt.status !== "COMPLETED" && appt.status !== "NO_SHOW" && <button className="btn btn-danger btn-sm" onClick={() => setCancelTarget(appt)}>إلغاء</button>}{appt.status === "COMPLETED" && <button className="btn btn-accent btn-sm" onClick={() => setReviewTarget(appt)}>قيّم الزيارة</button>}</div></div></div>)}</div>}{reviewTarget && <ReviewModal appointment={reviewTarget} onClose={() => setReviewTarget(null)} onSubmitted={() => { setReviewTarget(null); setMessage("شكرًا لتقييمك ✨"); }} />}{rescheduleTarget && <RescheduleModal appointment={rescheduleTarget} onClose={() => setRescheduleTarget(null)} onDone={() => { setRescheduleTarget(null); setMessage("تم تغيير الموعد بنجاح."); fetchAppointments(); }} />}{cancelTarget && <ConfirmModal title="إلغاء الموعد" message={`هل أنت متأكد من إلغاء موعدك مع د. ${cancelTarget.doctor.fullName}؟ لا يمكن التراجع عن هذا الإجراء.`} confirmLabel="نعم، ألغِ الموعد" danger onConfirm={handleCancel} onClose={() => setCancelTarget(null)} />}</div>;
 }
-
 export default MyAppointments;

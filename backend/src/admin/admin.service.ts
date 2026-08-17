@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -14,26 +14,26 @@ export class AdminService {
     price: number;
     bio?: string;
     fullName: string;
-  }) {
+  }, clinicId?: number) {
+    if (!clinicId) throw new ForbiddenException('Clinic context is required');
+    const clinic = await this.prisma.clinic.findUnique({ where: { id: clinicId } });
+    if (!clinic || !clinic.isActive) throw new ForbiddenException('Clinic not found');
     const hashedPassword = await bcrypt.hash(data.password, 10);
-
-    const user = await this.prisma.user.create({
+    return this.prisma.user.create({
       data: {
         email: data.email,
         password: hashedPassword,
         role: Role.DOCTOR,
-
         doctor: {
           create: {
+            clinic: { connect: { id: clinicId } },
             specialty: data.specialty,
             price: data.price,
             bio: data.bio,
-            fullName : data.fullName,
+            fullName: data.fullName,
           },
         },
       },
     });
-
-    return user;
   }
 }
