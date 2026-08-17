@@ -12,9 +12,9 @@ export class DashboardController {
 
   @Roles(Role.DOCTOR)
   @Get('doctor')
-  getDoctorDashboard(@Req() req) { return this.dashboardService.getDoctorDashboard(req.user.userId, req.user); }
+  getDoctorDashboard(@Req() req) { return this.dashboardService.getDoctorDashboard(req.user.userId); }
 
-  @Roles(Role.DOCTOR)
   @Get('today')
-  getToday(@Req() req) { return this.dashboardService.getTodayAppointments(req.user.userId, req.user); }
+  @Roles(Role.DOCTOR)
+  getToday(@Req() req) { return this.dashboardService.getTodayAppointments(req.user.userId); }
 }
