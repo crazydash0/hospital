@@ -3,11 +3,14 @@ import { useParams, Link } from "react-router-dom";
 import api from "../api/axios";
 import Avatar from "../components/Avatar";
 import Stars from "../components/Stars";
+import WeeklyScheduleTable from "../components/WeeklyScheduleTable";
+import SocialLinks from "../components/SocialLinks";
 
 function DoctorProfile() {
   const { id } = useParams();
   const [doctor, setDoctor] = useState(null);
   const [reviewsData, setReviewsData] = useState(null);
+  const [schedule, setSchedule] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -16,12 +19,14 @@ function DoctorProfile() {
       setLoading(true);
       setError("");
       try {
-        const [doctorRes, reviewsRes] = await Promise.all([
+        const [doctorRes, reviewsRes, scheduleRes] = await Promise.all([
           api.get(`/doctors/${id}`),
           api.get(`/reviews/doctor/${id}`),
+          api.get(`/appointments/weekly-template/doctor/${id}`),
         ]);
         setDoctor(doctorRes.data);
         setReviewsData(reviewsRes.data);
+        setSchedule(scheduleRes.data);
       } catch (err) {
         setError(err.response?.data?.message || "تعذر تحميل بيانات الدكتور");
       } finally {
@@ -67,9 +72,19 @@ function DoctorProfile() {
             )}
             {doctor.bio && <p style={{ marginBottom: 10 }}>{doctor.bio}</p>}
             <strong style={{ color: "var(--teal-800)", fontSize: 18 }}>{doctor.price} ج.م</strong>
+            <SocialLinks doctor={doctor} />
           </div>
           <Link to="/book" className="btn btn-primary">احجز موعد</Link>
         </div>
+      </div>
+
+      <div className="section">
+        <h2>مواعيد العمل الأسبوعية</h2>
+        {schedule.length === 0 ? (
+          <div className="empty-state">لسه الدكتور ما حددش جدول أسبوعي.</div>
+        ) : (
+          <WeeklyScheduleTable template={schedule} />
+        )}
       </div>
 
       <div className="section">

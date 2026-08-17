@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import api from "../api/axios";
 import Avatar from "../components/Avatar";
 import Stars from "../components/Stars";
+import WeeklyScheduleTable from "../components/WeeklyScheduleTable";
 
 function BookAppointment() {
   const [doctors, setDoctors] = useState([]);
@@ -13,6 +14,7 @@ function BookAppointment() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [search, setSearch] = useState("");
   const [specialty, setSpecialty] = useState("");
+  const [schedule, setSchedule] = useState([]);
 
   useEffect(() => {
     async function fetchDoctors() {
@@ -48,10 +50,12 @@ function BookAppointment() {
     setError("");
     async function fetchSlots() {
       try {
-        const response = await api.get(
-          `/appointments/doctor/${selectedDoctor.id}/slots`
-        );
-        setSlots(response.data);
+        const [slotsRes, scheduleRes] = await Promise.all([
+          api.get(`/appointments/doctor/${selectedDoctor.id}/slots`),
+          api.get(`/appointments/weekly-template/doctor/${selectedDoctor.id}`),
+        ]);
+        setSlots(slotsRes.data);
+        setSchedule(scheduleRes.data);
       } catch (err) {
         console.log(err);
       } finally {
@@ -165,7 +169,14 @@ function BookAppointment() {
 
       {selectedDoctor && (
         <div className="section">
-          <h2>المواعيد المتاحة مع د. {selectedDoctor.fullName}</h2>
+          <h2>جدول عمل د. {selectedDoctor.fullName}</h2>
+          {schedule.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <WeeklyScheduleTable template={schedule} />
+            </div>
+          )}
+
+          <h2>المواعيد المتاحة</h2>
           {message && <div className="alert alert-success">{message}</div>}
           {error && <div className="alert alert-error">{error}</div>}
 

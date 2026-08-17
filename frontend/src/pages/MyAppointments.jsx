@@ -163,6 +163,16 @@ function MyAppointments() {
                 </div>
                 <div className="row wrap">
                   <StatusBadge status={appt.status} />
+                  {appt.meetingLink && (appt.status === "PENDING" || appt.status === "CONFIRMED") && (
+                    <a
+                      href={appt.meetingLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-accent btn-sm"
+                    >
+                      🎥 انضم للجلسة
+                    </a>
+                  )}
                   {appt.status !== "CANCELLED" && appt.status !== "COMPLETED" && (
                     <button className="btn btn-danger btn-sm" onClick={() => setCancelTarget(appt)}>
                       إلغاء

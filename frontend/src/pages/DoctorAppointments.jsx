@@ -168,6 +168,98 @@ function CompleteVisitModal({ appointment, onClose, onDone }) {
   );
 }
 
+function MeetingLinkControl({ appointment, onChanged }) {
+  const [editing, setEditing] = useState(false);
+  const [link, setLink] = useState(appointment.meetingLink || "");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setError("");
+    if (link.trim().length < 5) {
+      setError("رابط الجلسة قصير جدًا");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.patch(`/appointments/${appointment.id}/meeting-link`, {
+        meetingLink: link.trim(),
+      });
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      setError(err.response?.data?.message || "حصل خطأ أثناء حفظ الرابط");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRemove() {
+    setSubmitting(true);
+    try {
+      await api.delete(`/appointments/${appointment.id}/meeting-link`);
+      setLink("");
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      setError(err.response?.data?.message || "حصل خطأ");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <form onSubmit={handleSave} style={{ marginTop: 8, width: "100%" }}>
+        {error && <div className="alert alert-error">{error}</div>}
+        <div className="row wrap">
+          <input
+            type="text"
+            placeholder="رابط Google Meet أو Zoom"
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            style={{ maxWidth: 320 }}
+          />
+          <button type="submit" className="btn btn-primary btn-sm" disabled={submitting}>
+            {submitting ? "جاري الحفظ..." : "حفظ"}
+          </button>
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditing(false)}>
+            إلغاء
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  return appointment.meetingLink ? (
+    <div className="row wrap" style={{ marginTop: 8, gap: 8 }}>
+      <a
+        href={appointment.meetingLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="btn btn-accent btn-sm"
+      >
+        🎥 رابط الجلسة الأونلاين
+      </a>
+      <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)}>
+        تعديل
+      </button>
+      <button className="btn btn-danger btn-sm" onClick={handleRemove} disabled={submitting}>
+        إزالة
+      </button>
+    </div>
+  ) : (
+    <button
+      className="btn btn-outline btn-sm"
+      style={{ marginTop: 8 }}
+      onClick={() => setEditing(true)}
+    >
+      🎥 إضافة رابط جلسة أونلاين
+    </button>
+  );
+}
+
 function StatsBar({ stats }) {
   if (!stats) return null;
   const items = [
@@ -310,6 +402,9 @@ function DoctorAppointments() {
                       })}
                     </span>
                     <ContactChip email={appt.patient.user?.email} phone={appt.patient.phone} />
+                    {(appt.status === "PENDING" || appt.status === "CONFIRMED") && (
+                      <MeetingLinkControl appointment={appt} onChanged={fetchAppointments} />
+                    )}
                   </div>
                 </div>
                 <div className="row wrap">

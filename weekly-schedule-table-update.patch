@@ -1,0 +1,877 @@
+From 734c4e1c6462abf8807122ad94645cfbcf8e9e0b Mon Sep 17 00:00:00 2001
+From: Claude Assistant <assistant@example.com>
+Date: Sun, 16 Aug 2026 13:59:33 +0000
+Subject: [PATCH] add clear weekly schedule table for doctor and patient,
+ day-range scheduling with notes, day deletion, and leave management
+
+---
+ backend/prisma/schema.prisma                  |   1 +
+ .../appointments/appointments.controller.ts   |  46 +++-
+ .../src/appointments/appointments.service.ts  | 155 ++++++++++++-
+ backend/src/auth/dto/weekly-template.dto.ts   |  46 +++-
+ .../src/components/WeeklyScheduleTable.jsx    |  72 +++++++
+ frontend/src/pages/BookAppointment.jsx        |  21 +-
+ frontend/src/pages/DoctorProfile.jsx          |  15 +-
+ frontend/src/pages/WeeklySchedule.jsx         | 203 +++++++++++++-----
+ 8 files changed, 495 insertions(+), 64 deletions(-)
+ create mode 100644 frontend/src/components/WeeklyScheduleTable.jsx
+
+diff --git a/backend/prisma/schema.prisma b/backend/prisma/schema.prisma
+index 748e2ea..50c5c4c 100644
+--- a/backend/prisma/schema.prisma
++++ b/backend/prisma/schema.prisma
+@@ -213,6 +213,7 @@ model WeeklyScheduleTemplate {
+   startHour Int
+   endHour   Int
+   duration  Int    @default(30)
++  note      String?
+ 
+   doctor    Doctor @relation(fields: [doctorId], references: [id])
+ 
+diff --git a/backend/src/appointments/appointments.controller.ts b/backend/src/appointments/appointments.controller.ts
+index 9388505..851a636 100644
+--- a/backend/src/appointments/appointments.controller.ts
++++ b/backend/src/appointments/appointments.controller.ts
+@@ -1,4 +1,4 @@
+-import { Controller, Get, Post, Patch, Param, Body, Req } from '@nestjs/common';
++import { Controller, Get, Post, Patch, Delete, Param, Body, Req } from '@nestjs/common';
+ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+ import { AppointmentsService } from './appointments.service';
+ import { Roles } from '../auth/roles.decorator';
+@@ -6,7 +6,7 @@ import { Role } from '@prisma/client';
+ import { BookAppointmentDto } from '../auth/dto/book-appointment.dto';
+ import { CreateSlotsDto } from '../auth/dto/create-slots.dto';
+ import { ParseIntPipe } from '@nestjs/common';
+-import { SetWeeklyTemplateDto } from '../auth/dto/weekly-template.dto';
++import { SetWeeklyTemplateDto, SetWeeklyRangeDto } from '../auth/dto/weekly-template.dto';
+ import { CreateLeaveDto } from '../auth/dto/doctor-leave.dto';
+ 
+ @ApiTags('Appointments')
+@@ -87,21 +87,63 @@ createSlots(@Req() req, @Body() body: CreateSlotsDto) {
+       body.startHour,
+       body.endHour,
+       body.duration,
++      body.note,
+     );
+   }
+ 
++  @Roles(Role.DOCTOR)
++  @Post('weekly-template/range')
++  setWeeklyRange(@Req() req, @Body() body: SetWeeklyRangeDto) {
++    return this.service.setWeeklyRange(
++      req.user.userId,
++      body.fromDay,
++      body.toDay,
++      body.startHour,
++      body.endHour,
++      body.duration,
++      body.note,
++    );
++  }
++
++  @Roles(Role.DOCTOR)
++  @Delete('weekly-template/:dayOfWeek')
++  deleteWeeklyTemplateDay(
++    @Req() req,
++    @Param('dayOfWeek', ParseIntPipe) dayOfWeek: number,
++  ) {
++    return this.service.deleteWeeklyTemplateDay(req.user.userId, dayOfWeek);
++  }
++
+   @Roles(Role.DOCTOR)
+   @Get('weekly-template')
+   getWeeklyTemplate(@Req() req) {
+     return this.service.getWeeklyTemplate(req.user.userId);
+   }
+ 
++  // جدول دكتور معين، متاح لأي مستخدم مسجل دخول (مريض يشوفه قبل الحجز)
++  @Get('weekly-template/doctor/:doctorId')
++  getPublicWeeklyTemplate(@Param('doctorId', ParseIntPipe) doctorId: number) {
++    return this.service.getPublicWeeklyTemplate(doctorId);
++  }
++
+   @Roles(Role.DOCTOR)
+   @Post('leaves')
+   addLeave(@Req() req, @Body() body: CreateLeaveDto) {
+     return this.service.addLeave(req.user.userId, body.date);
+   }
+ 
++  @Roles(Role.DOCTOR)
++  @Get('leaves')
++  getLeaves(@Req() req) {
++    return this.service.getLeaves(req.user.userId);
++  }
++
++  @Roles(Role.DOCTOR)
++  @Delete('leaves/:id')
++  removeLeave(@Req() req, @Param('id', ParseIntPipe) id: number) {
++    return this.service.removeLeave(req.user.userId, id);
++  }
++
+   @Roles(Role.DOCTOR)
+   @Post('generate-week')
+   generateWeek(@Req() req) {
+diff --git a/backend/src/appointments/appointments.service.ts b/backend/src/appointments/appointments.service.ts
+index 007032d..5c26aed 100644
+--- a/backend/src/appointments/appointments.service.ts
++++ b/backend/src/appointments/appointments.service.ts
+@@ -295,6 +295,7 @@ export class AppointmentsService {
+     startHour: number,
+     endHour: number,
+     duration: number,
++    note?: string,
+   ) {
+     const doctor = await this.prisma.doctor.findUnique({
+       where: { userId: doctorUserId },
+@@ -304,15 +305,107 @@ export class AppointmentsService {
+       throw new NotFoundException('Doctor not found');
+     }
+ 
++    if (endHour <= startHour) {
++      throw new BadRequestException(
++        'ساعة النهاية لازم تكون بعد ساعة البداية',
++      );
++    }
++
+     return this.prisma.weeklyScheduleTemplate.upsert({
+       where: {
+         doctorId_dayOfWeek: { doctorId: doctor.id, dayOfWeek },
+       },
+-      update: { startHour, endHour, duration },
+-      create: { doctorId: doctor.id, dayOfWeek, startHour, endHour, duration },
++      update: { startHour, endHour, duration, note },
++      create: {
++        doctorId: doctor.id,
++        dayOfWeek,
++        startHour,
++        endHour,
++        duration,
++        note,
++      },
+     });
+   }
+ 
++  // إنشاء نطاق من الأيام دفعة واحدة (مثال: من الأحد للثلاثاء)
++  async setWeeklyRange(
++    doctorUserId: number,
++    fromDay: number,
++    toDay: number,
++    startHour: number,
++    endHour: number,
++    duration: number,
++    note?: string,
++  ) {
++    const doctor = await this.prisma.doctor.findUnique({
++      where: { userId: doctorUserId },
++    });
++
++    if (!doctor) {
++      throw new NotFoundException('Doctor not found');
++    }
++
++    if (fromDay > toDay) {
++      throw new BadRequestException(
++        'يوم البداية لازم يكون قبل يوم النهاية (لا يدعم النطاق الملتف حاليًا)',
++      );
++    }
++
++    if (endHour <= startHour) {
++      throw new BadRequestException(
++        'ساعة النهاية لازم تكون بعد ساعة البداية',
++      );
++    }
++
++    const results = [];
++    for (let day = fromDay; day <= toDay; day++) {
++      const result = await this.prisma.weeklyScheduleTemplate.upsert({
++        where: {
++          doctorId_dayOfWeek: { doctorId: doctor.id, dayOfWeek: day },
++        },
++        update: { startHour, endHour, duration, note },
++        create: {
++          doctorId: doctor.id,
++          dayOfWeek: day,
++          startHour,
++          endHour,
++          duration,
++          note,
++        },
++      });
++      results.push(result);
++    }
++
++    return results;
++  }
++
++  // حذف يوم بالكامل من الجدول الأسبوعي
++  async deleteWeeklyTemplateDay(doctorUserId: number, dayOfWeek: number) {
++    const doctor = await this.prisma.doctor.findUnique({
++      where: { userId: doctorUserId },
++    });
++
++    if (!doctor) {
++      throw new NotFoundException('Doctor not found');
++    }
++
++    const existing = await this.prisma.weeklyScheduleTemplate.findUnique({
++      where: {
++        doctorId_dayOfWeek: { doctorId: doctor.id, dayOfWeek },
++      },
++    });
++
++    if (!existing) {
++      throw new NotFoundException('لا يوجد جدول لهذا اليوم أصلًا');
++    }
++
++    await this.prisma.weeklyScheduleTemplate.delete({
++      where: { id: existing.id },
++    });
++
++    return { message: 'تم حذف اليوم من الجدول' };
++  }
++
+   // عرض الجدول الأسبوعي الحالي
+   async getWeeklyTemplate(doctorUserId: number) {
+     const doctor = await this.prisma.doctor.findUnique({
+@@ -329,6 +422,22 @@ export class AppointmentsService {
+     });
+   }
+ 
++  // عرض الجدول الأسبوعي لدكتور معين (متاح للمريض عشان يشوفه قبل الحجز)
++  async getPublicWeeklyTemplate(doctorId: number) {
++    const doctor = await this.prisma.doctor.findUnique({
++      where: { id: doctorId },
++    });
++
++    if (!doctor) {
++      throw new NotFoundException('Doctor not found');
++    }
++
++    return this.prisma.weeklyScheduleTemplate.findMany({
++      where: { doctorId },
++      orderBy: { dayOfWeek: 'asc' },
++    });
++  }
++
+   // تسجيل يوم إجازة
+   async addLeave(doctorUserId: number, date: string) {
+     const doctor = await this.prisma.doctor.findUnique({
+@@ -348,6 +457,48 @@ export class AppointmentsService {
+     }
+   }
+ 
++  // عرض أيام الإجازة القادمة
++  async getLeaves(doctorUserId: number) {
++    const doctor = await this.prisma.doctor.findUnique({
++      where: { userId: doctorUserId },
++    });
++
++    if (!doctor) {
++      throw new NotFoundException('Doctor not found');
++    }
++
++    return this.prisma.doctorLeave.findMany({
++      where: {
++        doctorId: doctor.id,
++        date: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
++      },
++      orderBy: { date: 'asc' },
++    });
++  }
++
++  // حذف يوم إجازة (التراجع عنه)
++  async removeLeave(doctorUserId: number, leaveId: number) {
++    const doctor = await this.prisma.doctor.findUnique({
++      where: { userId: doctorUserId },
++    });
++
++    if (!doctor) {
++      throw new NotFoundException('Doctor not found');
++    }
++
++    const leave = await this.prisma.doctorLeave.findUnique({
++      where: { id: leaveId },
++    });
++
++    if (!leave || leave.doctorId !== doctor.id) {
++      throw new NotFoundException('Leave not found');
++    }
++
++    await this.prisma.doctorLeave.delete({ where: { id: leaveId } });
++
++    return { message: 'تم حذف يوم الإجازة' };
++  }
++
+   // توليد مواعيد الأسبوع الجاي حسب الجدول الأسبوعي، مع تخطي الإجازات
+   async generateWeek(doctorUserId: number) {
+     const doctor = await this.prisma.doctor.findUnique({
+diff --git a/backend/src/auth/dto/weekly-template.dto.ts b/backend/src/auth/dto/weekly-template.dto.ts
+index 38cf053..b772bb8 100644
+--- a/backend/src/auth/dto/weekly-template.dto.ts
++++ b/backend/src/auth/dto/weekly-template.dto.ts
+@@ -1,5 +1,5 @@
+ import { ApiProperty } from '@nestjs/swagger';
+-import { IsInt, Max, Min } from 'class-validator';
++import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+ 
+ export class SetWeeklyTemplateDto {
+   @ApiProperty({ example: 0, description: '0=Sunday ... 6=Saturday' })
+@@ -25,4 +25,48 @@ export class SetWeeklyTemplateDto {
+   @Min(5)
+   @Max(240)
+   duration!: number;
++
++  @ApiProperty({ example: 'عيادة المعادي', required: false })
++  @IsOptional()
++  @IsString()
++  @MaxLength(200)
++  note?: string;
++}
++
++export class SetWeeklyRangeDto {
++  @ApiProperty({ example: 0, description: '0=Sunday ... 6=Saturday' })
++  @IsInt()
++  @Min(0)
++  @Max(6)
++  fromDay!: number;
++
++  @ApiProperty({ example: 2, description: '0=Sunday ... 6=Saturday' })
++  @IsInt()
++  @Min(0)
++  @Max(6)
++  toDay!: number;
++
++  @ApiProperty({ example: 9 })
++  @IsInt()
++  @Min(0)
++  @Max(23)
++  startHour!: number;
++
++  @ApiProperty({ example: 17 })
++  @IsInt()
++  @Min(1)
++  @Max(23)
++  endHour!: number;
++
++  @ApiProperty({ example: 30, required: false })
++  @IsInt()
++  @Min(5)
++  @Max(240)
++  duration!: number;
++
++  @ApiProperty({ example: 'عيادة المعادي', required: false })
++  @IsOptional()
++  @IsString()
++  @MaxLength(200)
++  note?: string;
+ }
+\ No newline at end of file
+diff --git a/frontend/src/components/WeeklyScheduleTable.jsx b/frontend/src/components/WeeklyScheduleTable.jsx
+new file mode 100644
+index 0000000..f66945f
+--- /dev/null
++++ b/frontend/src/components/WeeklyScheduleTable.jsx
+@@ -0,0 +1,72 @@
++import HourRange from "./HourRange";
++
++const DAYS = [
++  "الأحد",
++  "الاثنين",
++  "الثلاثاء",
++  "الأربعاء",
++  "الخميس",
++  "الجمعة",
++  "السبت",
++];
++
++// عرض جدول أسبوعي بشكل واضح لكل الأيام السبعة، مع تعليق كل يوم لو موجود
++function WeeklyScheduleTable({ template, onDeleteDay, editable = false }) {
++  const byDay = new Map(template.map((t) => [t.dayOfWeek, t]));
++
++  return (
++    <div className="card" style={{ padding: 0, overflow: "hidden" }}>
++      <table style={{ width: "100%", borderCollapse: "collapse" }}>
++        <tbody>
++          {DAYS.map((dayName, index) => {
++            const entry = byDay.get(index);
++            return (
++              <tr
++                key={index}
++                style={{
++                  borderBottom: index < 6 ? "1px solid var(--border)" : "none",
++                }}
++              >
++                <td style={{ padding: "12px 16px", width: 110, fontWeight: 700, color: "var(--teal-900)" }}>
++                  {dayName}
++                </td>
++                <td style={{ padding: "12px 16px" }}>
++                  {entry ? (
++                    <div>
++                      <HourRange
++                        startHour={entry.startHour}
++                        endHour={entry.endHour}
++                        duration={entry.duration}
++                      />
++                      {entry.note && (
++                        <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>
++                          📍 {entry.note}
++                        </div>
++                      )}
++                    </div>
++                  ) : (
++                    <span className="muted">غير متاح</span>
++                  )}
++                </td>
++                {editable && (
++                  <td style={{ padding: "12px 16px", width: 110, textAlign: "left" }}>
++                    {entry && (
++                      <button
++                        className="btn btn-danger btn-sm"
++                        onClick={() => onDeleteDay(index)}
++                      >
++                        حذف
++                      </button>
++                    )}
++                  </td>
++                )}
++              </tr>
++            );
++          })}
++        </tbody>
++      </table>
++    </div>
++  );
++}
++
++export default WeeklyScheduleTable;
+diff --git a/frontend/src/pages/BookAppointment.jsx b/frontend/src/pages/BookAppointment.jsx
+index e09c9a5..1e30556 100644
+--- a/frontend/src/pages/BookAppointment.jsx
++++ b/frontend/src/pages/BookAppointment.jsx
+@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
+ import api from "../api/axios";
+ import Avatar from "../components/Avatar";
+ import Stars from "../components/Stars";
++import WeeklyScheduleTable from "../components/WeeklyScheduleTable";
+ 
+ function BookAppointment() {
+   const [doctors, setDoctors] = useState([]);
+@@ -13,6 +14,7 @@ function BookAppointment() {
+   const [loadingSlots, setLoadingSlots] = useState(false);
+   const [search, setSearch] = useState("");
+   const [specialty, setSpecialty] = useState("");
++  const [schedule, setSchedule] = useState([]);
+ 
+   useEffect(() => {
+     async function fetchDoctors() {
+@@ -48,10 +50,12 @@ function BookAppointment() {
+     setError("");
+     async function fetchSlots() {
+       try {
+-        const response = await api.get(
+-          `/appointments/doctor/${selectedDoctor.id}/slots`
+-        );
+-        setSlots(response.data);
++        const [slotsRes, scheduleRes] = await Promise.all([
++          api.get(`/appointments/doctor/${selectedDoctor.id}/slots`),
++          api.get(`/appointments/weekly-template/doctor/${selectedDoctor.id}`),
++        ]);
++        setSlots(slotsRes.data);
++        setSchedule(scheduleRes.data);
+       } catch (err) {
+         console.log(err);
+       } finally {
+@@ -165,7 +169,14 @@ function BookAppointment() {
+ 
+       {selectedDoctor && (
+         <div className="section">
+-          <h2>المواعيد المتاحة مع د. {selectedDoctor.fullName}</h2>
++          <h2>جدول عمل د. {selectedDoctor.fullName}</h2>
++          {schedule.length > 0 && (
++            <div style={{ marginBottom: 24 }}>
++              <WeeklyScheduleTable template={schedule} />
++            </div>
++          )}
++
++          <h2>المواعيد المتاحة</h2>
+           {message && <div className="alert alert-success">{message}</div>}
+           {error && <div className="alert alert-error">{error}</div>}
+ 
+diff --git a/frontend/src/pages/DoctorProfile.jsx b/frontend/src/pages/DoctorProfile.jsx
+index 5444612..09c96fa 100644
+--- a/frontend/src/pages/DoctorProfile.jsx
++++ b/frontend/src/pages/DoctorProfile.jsx
+@@ -3,11 +3,13 @@ import { useParams, Link } from "react-router-dom";
+ import api from "../api/axios";
+ import Avatar from "../components/Avatar";
+ import Stars from "../components/Stars";
++import WeeklyScheduleTable from "../components/WeeklyScheduleTable";
+ 
+ function DoctorProfile() {
+   const { id } = useParams();
+   const [doctor, setDoctor] = useState(null);
+   const [reviewsData, setReviewsData] = useState(null);
++  const [schedule, setSchedule] = useState([]);
+   const [error, setError] = useState("");
+   const [loading, setLoading] = useState(true);
+ 
+@@ -16,12 +18,14 @@ function DoctorProfile() {
+       setLoading(true);
+       setError("");
+       try {
+-        const [doctorRes, reviewsRes] = await Promise.all([
++        const [doctorRes, reviewsRes, scheduleRes] = await Promise.all([
+           api.get(`/doctors/${id}`),
+           api.get(`/reviews/doctor/${id}`),
++          api.get(`/appointments/weekly-template/doctor/${id}`),
+         ]);
+         setDoctor(doctorRes.data);
+         setReviewsData(reviewsRes.data);
++        setSchedule(scheduleRes.data);
+       } catch (err) {
+         setError(err.response?.data?.message || "تعذر تحميل بيانات الدكتور");
+       } finally {
+@@ -72,6 +76,15 @@ function DoctorProfile() {
+         </div>
+       </div>
+ 
++      <div className="section">
++        <h2>مواعيد العمل الأسبوعية</h2>
++        {schedule.length === 0 ? (
++          <div className="empty-state">لسه الدكتور ما حددش جدول أسبوعي.</div>
++        ) : (
++          <WeeklyScheduleTable template={schedule} />
++        )}
++      </div>
++
+       <div className="section">
+         <h2>تقييمات المرضى</h2>
+         {!stats || stats.totalReviews === 0 ? (
+diff --git a/frontend/src/pages/WeeklySchedule.jsx b/frontend/src/pages/WeeklySchedule.jsx
+index f1e21df..d6b3adb 100644
+--- a/frontend/src/pages/WeeklySchedule.jsx
++++ b/frontend/src/pages/WeeklySchedule.jsx
+@@ -1,6 +1,7 @@
+ import { useState, useEffect } from "react";
+ import api from "../api/axios";
+-import HourRange from "../components/HourRange";
++import WeeklyScheduleTable from "../components/WeeklyScheduleTable";
++import ConfirmModal from "../components/ConfirmModal";
+ 
+ const DAYS = [
+   "الأحد",
+@@ -14,13 +15,18 @@ const DAYS = [
+ 
+ function WeeklySchedule() {
+   const [template, setTemplate] = useState([]);
+-  const [dayOfWeek, setDayOfWeek] = useState("0");
++  const [leaves, setLeaves] = useState([]);
++  const [fromDay, setFromDay] = useState("0");
++  const [toDay, setToDay] = useState("4");
+   const [startHour, setStartHour] = useState("");
+   const [endHour, setEndHour] = useState("");
+   const [duration, setDuration] = useState("30");
++  const [note, setNote] = useState("");
+   const [leaveDate, setLeaveDate] = useState("");
+   const [message, setMessage] = useState("");
+   const [error, setError] = useState("");
++  const [deleteTarget, setDeleteTarget] = useState(null);
++  const [deleteLeaveTarget, setDeleteLeaveTarget] = useState(null);
+ 
+   async function fetchTemplate() {
+     try {
+@@ -31,8 +37,18 @@ function WeeklySchedule() {
+     }
+   }
+ 
++  async function fetchLeaves() {
++    try {
++      const response = await api.get("/appointments/leaves");
++      setLeaves(response.data);
++    } catch (err) {
++      console.log(err);
++    }
++  }
++
+   useEffect(() => {
+     fetchTemplate();
++    fetchLeaves();
+   }, []);
+ 
+   function showResult(promise, successMsg) {
+@@ -43,20 +59,39 @@ function WeeklySchedule() {
+       .catch((err) => setError(err.response?.data?.message || "حصل خطأ، حاول تاني"));
+   }
+ 
+-  async function handleSaveDay(e) {
++  async function handleSaveRange(e) {
+     e.preventDefault();
++    if (Number(fromDay) > Number(toDay)) {
++      setError("يوم البداية لازم يكون قبل يوم النهاية");
++      return;
++    }
+     await showResult(
+-      api.post("/appointments/weekly-template", {
+-        dayOfWeek: Number(dayOfWeek),
++      api.post("/appointments/weekly-template/range", {
++        fromDay: Number(fromDay),
++        toDay: Number(toDay),
+         startHour: Number(startHour),
+         endHour: Number(endHour),
+         duration: Number(duration),
++        note: note.trim() || undefined,
+       }),
+-      "تم حفظ اليوم بنجاح."
++      `تم حفظ الجدول من ${DAYS[fromDay]} إلى ${DAYS[toDay]} بنجاح.`
+     );
+     fetchTemplate();
+   }
+ 
++  async function handleDeleteDay() {
++    setError("");
++    try {
++      await api.delete(`/appointments/weekly-template/${deleteTarget}`);
++      setMessage(`تم حذف يوم ${DAYS[deleteTarget]} من الجدول.`);
++      setDeleteTarget(null);
++      fetchTemplate();
++    } catch (err) {
++      setError(err.response?.data?.message || "حصل خطأ، حاول تاني");
++      setDeleteTarget(null);
++    }
++  }
++
+   async function handleAddLeave(e) {
+     e.preventDefault();
+     await showResult(
+@@ -64,6 +99,20 @@ function WeeklySchedule() {
+       "تم إضافة يوم الإجازة."
+     );
+     setLeaveDate("");
++    fetchLeaves();
++  }
++
++  async function handleDeleteLeave() {
++    setError("");
++    try {
++      await api.delete(`/appointments/leaves/${deleteLeaveTarget.id}`);
++      setMessage("تم إلغاء يوم الإجازة.");
++      setDeleteLeaveTarget(null);
++      fetchLeaves();
++    } catch (err) {
++      setError(err.response?.data?.message || "حصل خطأ، حاول تاني");
++      setDeleteLeaveTarget(null);
++    }
+   }
+ 
+   async function handleGenerateWeek() {
+@@ -81,63 +130,48 @@ function WeeklySchedule() {
+     }
+   }
+ 
+-  function handleSelectDay(day) {
+-    setDayOfWeek(String(day.dayOfWeek));
+-    setStartHour(String(day.startHour));
+-    setEndHour(String(day.endHour));
+-    setDuration(String(day.duration));
+-  }
+-
+   return (
+     <div className="page">
+       <div className="page-head">
+         <h1>الجدول الأسبوعي</h1>
+-        <p className="subtitle">حدد أيام وساعات شغلك الأسبوعية، وولّد مواعيد الأسبوع الجاي بضغطة واحدة.</p>
++        <p className="subtitle">
++          حدّد أيام وساعات شغلك، ممكن تختار نطاق أيام مرة واحدة (زي من الأحد للثلاثاء) وتضيف تعليق زي اسم العيادة.
++        </p>
+       </div>
+ 
+       {message && <div className="alert alert-success">{message}</div>}
+       {error && <div className="alert alert-error">{error}</div>}
+ 
+       <div className="section">
+-        <h2>الجدول الحالي</h2>
+-        {template.length === 0 ? (
+-          <div className="empty-state">لسه ماحددتش أي أيام.</div>
+-        ) : (
+-          <div className="stack">
+-            {template.map((day) => (
+-              <div key={day.id} className="card-row">
+-                <div>
+-                  <strong style={{ display: "block", marginBottom: 2 }}>
+-                    {DAYS[day.dayOfWeek]}
+-                  </strong>
+-                  <HourRange
+-                    startHour={day.startHour}
+-                    endHour={day.endHour}
+-                    duration={day.duration}
+-                  />
+-                </div>
+-                <button className="btn btn-outline btn-sm" onClick={() => handleSelectDay(day)}>
+-                  تعديل
+-                </button>
+-              </div>
+-            ))}
+-          </div>
+-        )}
++        <h2>جدولك الحالي</h2>
++        <WeeklyScheduleTable
++          template={template}
++          editable
++          onDeleteDay={(day) => setDeleteTarget(day)}
++        />
+       </div>
+ 
+       <div className="grid grid-2 section">
+         <div className="card">
+-          <h2>تحديد / تعديل يوم</h2>
+-          <form onSubmit={handleSaveDay}>
+-            <div className="field">
+-              <label>اليوم</label>
+-              <select value={dayOfWeek} onChange={(e) => setDayOfWeek(e.target.value)}>
+-                {DAYS.map((name, index) => (
+-                  <option key={index} value={index}>
+-                    {name}
+-                  </option>
+-                ))}
+-              </select>
++          <h2>تحديد نطاق أيام</h2>
++          <form onSubmit={handleSaveRange}>
++            <div className="form-grid">
++              <div className="field">
++                <label>من يوم</label>
++                <select value={fromDay} onChange={(e) => setFromDay(e.target.value)}>
++                  {DAYS.map((name, index) => (
++                    <option key={index} value={index}>{name}</option>
++                  ))}
++                </select>
++              </div>
++              <div className="field">
++                <label>إلى يوم</label>
++                <select value={toDay} onChange={(e) => setToDay(e.target.value)}>
++                  {DAYS.map((name, index) => (
++                    <option key={index} value={index}>{name}</option>
++                  ))}
++                </select>
++              </div>
+             </div>
+             <div className="form-grid">
+               <div className="field">
+@@ -146,6 +180,8 @@ function WeeklySchedule() {
+                   type="number"
+                   value={startHour}
+                   onChange={(e) => setStartHour(e.target.value)}
++                  min="0"
++                  max="23"
+                   required
+                 />
+               </div>
+@@ -155,6 +191,8 @@ function WeeklySchedule() {
+                   type="number"
+                   value={endHour}
+                   onChange={(e) => setEndHour(e.target.value)}
++                  min="1"
++                  max="23"
+                   required
+                 />
+               </div>
+@@ -165,20 +203,32 @@ function WeeklySchedule() {
+                 type="number"
+                 value={duration}
+                 onChange={(e) => setDuration(e.target.value)}
++                min="5"
++                max="240"
+                 required
+               />
+             </div>
++            <div className="field">
++              <label>تعليق (اختياري)</label>
++              <input
++                type="text"
++                placeholder="مثال: عيادة المعادي"
++                value={note}
++                onChange={(e) => setNote(e.target.value)}
++              />
++              <span className="hint">هيظهر جنب كل يوم في النطاق ده، زي اسم العيادة أو الفرع.</span>
++            </div>
+             <button type="submit" className="btn btn-primary btn-block">
+-              حفظ اليوم
++              حفظ النطاق
+             </button>
+           </form>
+         </div>
+ 
+         <div className="card">
+-          <h2>إضافة يوم إجازة</h2>
+-          <form onSubmit={handleAddLeave}>
++          <h2>أيام الإجازة</h2>
++          <form onSubmit={handleAddLeave} style={{ marginBottom: 18 }}>
+             <div className="field">
+-              <label>التاريخ</label>
++              <label>إضافة يوم إجازة</label>
+               <input
+                 type="date"
+                 value={leaveDate}
+@@ -191,6 +241,31 @@ function WeeklySchedule() {
+             </button>
+           </form>
+ 
++          {leaves.length === 0 ? (
++            <p className="muted" style={{ fontSize: 14 }}>مفيش أيام إجازة قادمة.</p>
++          ) : (
++            <div className="stack">
++              {leaves.map((leave) => (
++                <div key={leave.id} className="card-row">
++                  <span>
++                    {new Date(leave.date).toLocaleDateString("ar-EG", {
++                      weekday: "long",
++                      year: "numeric",
++                      month: "long",
++                      day: "numeric",
++                    })}
++                  </span>
++                  <button
++                    className="btn btn-danger btn-sm"
++                    onClick={() => setDeleteLeaveTarget(leave)}
++                  >
++                    إلغاء
++                  </button>
++                </div>
++              ))}
++            </div>
++          )}
++
+           <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--border)" }}>
+             <h2>توليد مواعيد الأسبوع القادم</h2>
+             <p className="muted" style={{ marginBottom: 12, fontSize: 14 }}>
+@@ -202,6 +277,28 @@ function WeeklySchedule() {
+           </div>
+         </div>
+       </div>
++
++      {deleteTarget !== null && (
++        <ConfirmModal
++          title="حذف يوم من الجدول"
++          message={`هل أنت متأكد من حذف يوم ${DAYS[deleteTarget]} بالكامل من جدولك الأسبوعي؟`}
++          confirmLabel="نعم، احذف اليوم"
++          danger
++          onConfirm={handleDeleteDay}
++          onClose={() => setDeleteTarget(null)}
++        />
++      )}
++
++      {deleteLeaveTarget && (
++        <ConfirmModal
++          title="إلغاء يوم الإجازة"
++          message="هل أنت متأكد من إلغاء يوم الإجازة ده؟ هيرجع يوم شغل عادي."
++          confirmLabel="نعم، ألغِ الإجازة"
++          danger
++          onConfirm={handleDeleteLeave}
++          onClose={() => setDeleteLeaveTarget(null)}
++        />
++      )}
+     </div>
+   );
+ }
+-- 
+2.43.0
+
