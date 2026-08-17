@@ -26,104 +26,21 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
 
-        <Route
-          path="/book"
-          element={
-            <ProtectedRoute allowedRoles={["PATIENT"]}>
-              <BookAppointment />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/my-appointments"
-          element={
-            <ProtectedRoute allowedRoles={["PATIENT"]}>
-              <MyAppointments />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/my-records"
-          element={
-            <ProtectedRoute allowedRoles={["PATIENT"]}>
-              <MyMedicalRecords />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/doctors/:id"
-          element={
-            <ProtectedRoute>
-              <DoctorProfile />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/doctors/:id" element={<DoctorProfile />} />
 
-        <Route
-          path="/create-slots"
-          element={
-            <ProtectedRoute allowedRoles={["DOCTOR"]}>
-              <CreateSlots />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/weekly-schedule"
-          element={
-            <ProtectedRoute allowedRoles={["DOCTOR"]}>
-              <WeeklySchedule />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/doctor-appointments"
-          element={
-            <ProtectedRoute allowedRoles={["DOCTOR"]}>
-              <DoctorAppointments />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/patients"
-          element={
-            <ProtectedRoute allowedRoles={["DOCTOR"]}>
-              <MyPatients />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/patients/:id"
-          element={
-            <ProtectedRoute allowedRoles={["DOCTOR"]}>
-              <PatientProfile />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/my-profile"
-          element={
-            <ProtectedRoute allowedRoles={["DOCTOR"]}>
-              <DoctorEditProfile />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/my-reviews"
-          element={
-            <ProtectedRoute allowedRoles={["DOCTOR"]}>
-              <DoctorReviews />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/book" element={<ProtectedRoute allowedRoles={["PATIENT"]}><BookAppointment /></ProtectedRoute>} />
+        <Route path="/my-appointments" element={<ProtectedRoute allowedRoles={["PATIENT"]}><MyAppointments /></ProtectedRoute>} />
+        <Route path="/my-records" element={<ProtectedRoute allowedRoles={["PATIENT"]}><MyMedicalRecords /></ProtectedRoute>} />
 
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminDashboard />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/create-slots" element={<ProtectedRoute allowedRoles={["DOCTOR"]}><CreateSlots /></ProtectedRoute>} />
+        <Route path="/weekly-schedule" element={<ProtectedRoute allowedRoles={["DOCTOR"]}><WeeklySchedule /></ProtectedRoute>} />
+        <Route path="/doctor-appointments" element={<ProtectedRoute allowedRoles={["DOCTOR"]}><DoctorAppointments /></ProtectedRoute>} />
+        <Route path="/patients" element={<ProtectedRoute allowedRoles={["DOCTOR"]}><MyPatients /></ProtectedRoute>} />
+        <Route path="/patients/:id" element={<ProtectedRoute allowedRoles={["DOCTOR"]}><PatientProfile /></ProtectedRoute>} />
+        <Route path="/my-profile" element={<ProtectedRoute allowedRoles={["DOCTOR"]}><DoctorEditProfile /></ProtectedRoute>} />
+        <Route path="/my-reviews" element={<ProtectedRoute allowedRoles={["DOCTOR"]}><DoctorReviews /></ProtectedRoute>} />
+
+        <Route path="/admin" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminDashboard /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );
