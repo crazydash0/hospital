@@ -316,13 +316,71 @@ model Payment {
   @@index([appointmentId])
 }
 
-enum Role { DOCTOR PATIENT ADMIN }
-enum ClinicRole { OWNER DOCTOR RECEPTIONIST STAFF }
-enum Gender { MALE FEMALE }
-enum AppointmentStatus { PENDING CONFIRMED CANCELLED COMPLETED NO_SHOW }
-enum PaymentStatus { PAID REFUNDED VOID }
-enum PaymentMethod { CASH CARD ONLINE }
-enum TemplateVisibility { PRIVATE PUBLIC }
-enum FieldType { TEXT TEXTAREA NUMBER DATE CHECKBOX SELECT VITAL }
-enum AttachmentType { PRESCRIPTION LAB_RESULT XRAY MRI CT_SCAN ULTRASOUND REPORT OTHER }
-enum UploadedBy { DOCTOR PATIENT }
+enum Role {
+  DOCTOR
+  PATIENT
+  ADMIN
+}
+
+enum ClinicRole {
+  OWNER
+  DOCTOR
+  RECEPTIONIST
+  STAFF
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PAID
+  REFUNDED
+  VOID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  ONLINE
+}
+
+enum TemplateVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum FieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  DATE
+  CHECKBOX
+  SELECT
+  VITAL
+}
+
+enum AttachmentType {
+  PRESCRIPTION
+  LAB_RESULT
+  XRAY
+  MRI
+  CT_SCAN
+  ULTRASOUND
+  REPORT
+  OTHER
+}
+
+enum UploadedBy {
+  DOCTOR
+  PATIENT
+}
