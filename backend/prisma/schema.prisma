@@ -9,8 +9,11 @@ datasource db {
 
 model User {
   id       Int    @id @default(autoincrement())
-  email    String @unique
-  password String
+  email    String? @unique
+  password String?
+  phone    String? @unique
+  emailVerifiedAt DateTime?
+  phoneVerifiedAt DateTime?
   role     Role   @default(PATIENT)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -18,6 +21,37 @@ model User {
   patient      Patient?
   memberships  ClinicMembership[]
   attachments  MedicalAttachment[]
+  identities   AuthIdentity[]
+  verificationCodes VerificationCode[]
+  notifications Notification[]
+  notificationPreference NotificationPreference?
+}
+
+model AuthIdentity {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  provider   AuthProvider
+  providerId String
+  createdAt  DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerId])
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+model VerificationCode {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  target    String
+  type      VerificationType
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([target, type, expiresAt])
+  @@index([userId, type])
 }
 
 model Clinic {
@@ -26,7 +60,7 @@ model Clinic {
   slug      String   @unique
   logoUrl   String?
   phone     String?
-  address   String?
+  address  String?
   timezone  String   @default("Africa/Cairo")
   currency  String   @default("EGP")
   isActive  Boolean  @default(true)
@@ -66,7 +100,7 @@ model ClinicPatient {
   clinicId  Int
   patientId Int
   notes     String?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   updatedAt DateTime @updatedAt
   clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
@@ -133,6 +167,7 @@ model Appointment {
   medicalRecord MedicalRecord?
   review        Review?
   payments      Payment[]
+  reminder      AppointmentReminder?
   @@index([clinicId])
   @@index([doctorId])
   @@index([patientId])
@@ -316,71 +351,52 @@ model Payment {
   @@index([appointmentId])
 }
 
-enum Role {
-  DOCTOR
-  PATIENT
-  ADMIN
+model Notification {
+  id          Int              @id @default(autoincrement())
+  userId      Int
+  type        NotificationType
+  channel     NotificationChannel
+  title       String
+  body        String
+  appointmentId Int?
+  sentAt      DateTime?
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+  @@index([appointmentId, type, channel])
 }
 
-enum ClinicRole {
-  OWNER
-  DOCTOR
-  RECEPTIONIST
-  STAFF
+model NotificationPreference {
+  id       Int     @id @default(autoincrement())
+  userId   Int     @unique
+  email    Boolean @default(true)
+  sms      Boolean @default(true)
+  inApp    Boolean @default(true)
+  reminders Boolean @default(true)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-enum Gender {
-  MALE
-  FEMALE
+model AppointmentReminder {
+  id            Int      @id @default(autoincrement())
+  appointmentId Int      @unique
+  scheduledFor  DateTime
+  processedAt   DateTime?
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  @@index([scheduledFor, processedAt])
 }
 
-enum AppointmentStatus {
-  PENDING
-  CONFIRMED
-  CANCELLED
-  COMPLETED
-  NO_SHOW
-}
-
-enum PaymentStatus {
-  PAID
-  REFUNDED
-  VOID
-}
-
-enum PaymentMethod {
-  CASH
-  CARD
-  ONLINE
-}
-
-enum TemplateVisibility {
-  PRIVATE
-  PUBLIC
-}
-
-enum FieldType {
-  TEXT
-  TEXTAREA
-  NUMBER
-  DATE
-  CHECKBOX
-  SELECT
-  VITAL
-}
-
-enum AttachmentType {
-  PRESCRIPTION
-  LAB_RESULT
-  XRAY
-  MRI
-  CT_SCAN
-  ULTRASOUND
-  REPORT
-  OTHER
-}
-
-enum UploadedBy {
-  DOCTOR
-  PATIENT
-}
+enum Role { DOCTOR PATIENT ADMIN }
+enum ClinicRole { OWNER DOCTOR RECEPTIONIST STAFF }
+enum Gender { MALE FEMALE }
+enum AppointmentStatus { PENDING CONFIRMED CANCELLED COMPLETED NO_SHOW }
+enum PaymentStatus { PAID REFUNDED VOID }
+enum PaymentMethod { CASH CARD ONLINE }
+enum TemplateVisibility { PRIVATE PUBLIC }
+enum FieldType { TEXT TEXTAREA NUMBER DATE CHECKBOX SELECT VITAL }
+enum AttachmentType { PRESCRIPTION LAB_RESULT XRAY MRI CT_SCAN ULTRASOUND REPORT OTHER }
+enum UploadedBy { DOCTOR PATIENT }
+enum AuthProvider { GOOGLE FACEBOOK }
+enum VerificationType { EMAIL PHONE }
+enum NotificationType { APPOINTMENT_BOOKED APPOINTMENT_CONFIRMED APPOINTMENT_CANCELLED APPOINTMENT_RESCHEDULED APPOINTMENT_REMINDER PASSWORD_RESET }
+enum NotificationChannel { EMAIL SMS IN_APP }
