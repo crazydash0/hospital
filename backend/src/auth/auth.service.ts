@@ -64,7 +64,7 @@ export class AuthService {
   async requestPhoneVerification(phone: string) {
     const normalized = this.normalizePhone(phone);
     let user = await this.prisma.user.findUnique({ where: { phone: normalized } });
-    if (!user) user = await this.prisma.user.create({ data: { phone: normalized, role: Role.PATIENT, patient: { create: { fullName: 'New Patient', phone: normalized } }, notificationPreference: { create: {} } });
+    if (!user) user = await this.prisma.user.create({ data: { phone: normalized, role: Role.PATIENT, patient: { create: { fullName: 'New Patient', phone: normalized } }, notificationPreference: { create: {} } } });
     if (user.phoneVerifiedAt) return { message: 'Phone is already verified' };
     await this.issueVerificationCode(user.id, normalized, VerificationType.PHONE);
     return { message: 'Verification code sent to your phone' };
