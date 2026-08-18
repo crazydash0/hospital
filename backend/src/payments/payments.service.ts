@@ -20,7 +20,9 @@ export class PaymentsService {
     const clinicId = this.clinicId(user);
     const appointment = await this.prisma.appointment.findFirst({ where: { id: dto.appointmentId, clinicId }, include: { doctor: true, clinic: true } });
     if (!appointment) throw new NotFoundException('Appointment not found');
-    if ([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW].includes(appointment.status)) throw new BadRequestException('Cannot record payment for a cancelled or no-show appointment');
+    if (appointment.status === AppointmentStatus.CANCELLED || appointment.status === AppointmentStatus.NO_SHOW) {
+      throw new BadRequestException('Cannot record payment for a cancelled or no-show appointment');
+    }
     if (dto.amount <= 0 || !Number.isFinite(dto.amount)) throw new BadRequestException('Invalid payment amount');
     return this.prisma.payment.create({ data: { clinicId, appointmentId: appointment.id, amount: dto.amount, method: dto.method, reference: dto.reference?.trim() || undefined, status: PaymentStatus.PAID } });
   }
