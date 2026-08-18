@@ -10,10 +10,16 @@ export class AccessControlService {
 
   private ensureClinicContext(user: JwtUser) { if (!user.clinicId) throw new ForbiddenException('Clinic context is required'); }
 
+  private ensureAppointmentIntegrity(appointment: Appointment & { doctor: { clinicId: number }; patient: { id: number } }) {
+    if (!appointment.clinicId || appointment.doctor.clinicId !== appointment.clinicId) throw new ForbiddenException('Invalid appointment clinic relationship');
+  }
+
   async verifyAppointmentAccess(id: number, user: JwtUser): Promise<Appointment> {
     const appointment = await this.prisma.appointment.findUnique({ where: { id }, include: { doctor: true, patient: true } });
     if (!appointment) throw new NotFoundException('Appointment not found');
+    this.ensureAppointmentIntegrity(appointment);
     if (user.role === Role.PATIENT) {
+      if (appointment.patientId !== appointment.patient.id) throw new ForbiddenException('Invalid appointment patient relationship');
       const patient = await this.prisma.patient.findUnique({ where: { userId: user.userId } });
       if (!patient || patient.id !== appointment.patientId) throw new ForbiddenException('Access denied');
       return appointment;
@@ -35,6 +41,7 @@ export class AccessControlService {
   async verifyMedicalRecordAccess(id: number, user: JwtUser): Promise<MedicalRecord> {
     const record = await this.prisma.medicalRecord.findUnique({ where: { id }, include: { doctor: true, patient: true } });
     if (!record) throw new NotFoundException('Medical record not found');
+    if (!record.clinicId || record.doctor.clinicId !== record.clinicId) throw new ForbiddenException('Invalid medical record clinic relationship');
     if (user.role === Role.PATIENT) {
       const patient = await this.prisma.patient.findUnique({ where: { userId: user.userId } });
       if (!patient || patient.id !== record.patientId) throw new ForbiddenException('Access denied');
@@ -54,6 +61,7 @@ export class AccessControlService {
   async verifyReviewAccess(id: number, user: JwtUser): Promise<Review> {
     const review = await this.prisma.review.findUnique({ where: { id }, include: { doctor: true, patient: true, appointment: true } });
     if (!review) throw new NotFoundException('Review not found');
+    if (!review.clinicId || review.doctor.clinicId !== review.clinicId || review.appointment.clinicId !== review.clinicId || review.appointment.doctorId !== review.doctorId || review.appointment.patientId !== review.patientId) throw new ForbiddenException('Invalid review clinic relationship');
     if (user.role === Role.PATIENT) {
       const patient = await this.prisma.patient.findUnique({ where: { userId: user.userId } });
       if (!patient || patient.id !== review.patientId) throw new ForbiddenException('Access denied');
@@ -71,19 +79,21 @@ export class AccessControlService {
   }
 
   async verifyPrescriptionAccess(id: number, user: JwtUser) {
-    const prescription = await this.prisma.prescription.findUnique({ where: { id }, include: { medicalRecord: true } });
+    const prescription = await this.prisma.prescription.findUnique({ where: { id }, include: { medicalRecord: { include: { doctor: true } } } });
     if (!prescription) throw new NotFoundException('Prescription not found');
+    const record = prescription.medicalRecord;
+    if (!record.clinicId || record.doctor.clinicId !== record.clinicId) throw new ForbiddenException('Invalid prescription clinic relationship');
     if (user.role === Role.PATIENT) {
       const patient = await this.prisma.patient.findUnique({ where: { userId: user.userId } });
-      if (!patient || patient.id !== prescription.medicalRecord.patientId) throw new ForbiddenException('Access denied');
+      if (!patient || patient.id !== record.patientId) throw new ForbiddenException('Access denied');
       return prescription;
     }
     this.ensureClinicContext(user);
-    if (prescription.medicalRecord.clinicId !== user.clinicId) throw new ForbiddenException('Access denied');
+    if (record.clinicId !== user.clinicId) throw new ForbiddenException('Access denied');
     if (user.role === Role.ADMIN) return prescription;
     if (user.role === Role.DOCTOR) {
       const doctor = await this.prisma.doctor.findUnique({ where: { userId: user.userId } });
-      if (!doctor || doctor.id !== prescription.medicalRecord.doctorId || doctor.clinicId !== user.clinicId) throw new ForbiddenException('Access denied');
+      if (!doctor || doctor.id !== record.doctorId || doctor.clinicId !== user.clinicId) throw new ForbiddenException('Access denied');
       return prescription;
     }
     throw new ForbiddenException('Access denied');
