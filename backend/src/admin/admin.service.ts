@@ -18,19 +18,20 @@ export class AdminService {
     if (!clinicId) throw new ForbiddenException('Clinic context is required');
     const clinic = await this.prisma.clinic.findUnique({ where: { id: clinicId } });
     if (!clinic || !clinic.isActive) throw new ForbiddenException('Clinic not found');
-    const hashedPassword = await bcrypt.hash(data.password, 10);
+    const hashedPassword = await bcrypt.hash(data.password, 12);
+    const email = data.email.trim().toLowerCase();
     return this.prisma.user.create({
       data: {
-        email: data.email,
+        email,
         password: hashedPassword,
         role: Role.DOCTOR,
         doctor: {
           create: {
             clinic: { connect: { id: clinicId } },
-            specialty: data.specialty,
+            specialty: data.specialty.trim(),
             price: data.price,
-            bio: data.bio,
-            fullName: data.fullName,
+            bio: data.bio?.trim(),
+            fullName: data.fullName.trim(),
           },
         },
       },
