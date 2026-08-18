@@ -11,8 +11,8 @@ import { IS_PUBLIC_KEY } from './public.decorator';
 @Injectable()
 export class GlobalAuthGuard implements CanActivate {
   constructor(
-    private jwtService: JwtService,
-    private reflector: Reflector,
+    private readonly jwtService: JwtService,
+    private readonly reflector: Reflector,
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -20,28 +20,29 @@ export class GlobalAuthGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (isPublic) {
-      return true;
-    }
+    if (isPublic) return true;
 
     const req = context.switchToHttp().getRequest();
-
     const authHeader = req.headers.authorization;
 
-    if (!authHeader) {
-      throw new UnauthorizedException('No token');
+    if (typeof authHeader !== 'string') {
+      throw new UnauthorizedException('Authentication required');
     }
 
-    const token = authHeader.split(' ')[1];
+    const [scheme, token] = authHeader.trim().split(/\s+/);
+    if (scheme?.toLowerCase() !== 'bearer' || !token) {
+      throw new UnauthorizedException('Invalid authorization header');
+    }
 
     try {
       const payload = this.jwtService.verify(token);
-
+      if (!payload?.userId || !payload?.role) {
+        throw new UnauthorizedException('Invalid token payload');
+      }
       req.user = payload;
-
       return true;
     } catch {
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedException('Invalid or expired token');
     }
   }
 }
