@@ -109,12 +109,16 @@ export class AuthService {
   }
 
   async loginWithOAuth(provider: AuthProvider, providerId: string, email: string | null, fullName: string) {
+    if (!email) throw new UnauthorizedException('This social account did not provide a verified email. Use phone verification or another sign-in method.');
+    const normalizedEmail = email.trim().toLowerCase();
     let identity = await this.prisma.authIdentity.findUnique({ where: { provider_providerId: { provider, providerId } }, include: { user: { include: { patient: true, doctor: true, memberships: { include: { clinic: true } } } } } });
     if (!identity) {
-      let user = email ? await this.prisma.user.findUnique({ where: { email: email.toLowerCase() }, include: { patient: true, doctor: true, memberships: { include: { clinic: true } } } }) : null;
-      if (!user) user = await this.prisma.user.create({ data: { email: email?.toLowerCase(), emailVerifiedAt: email ? new Date() : undefined, role: Role.PATIENT, patient: { create: { fullName: fullName.trim() } }, notificationPreference: { create: {} } }, include: { patient: true, doctor: true, memberships: { include: { clinic: true } } } });
+      let user = await this.prisma.user.findUnique({ where: { email: normalizedEmail }, include: { patient: true, doctor: true, memberships: { include: { clinic: true } } } });
+      if (user && !user.emailVerifiedAt) throw new UnauthorizedException('Verify this email before linking the social account.');
+      if (!user) user = await this.prisma.user.create({ data: { email: normalizedEmail, emailVerifiedAt: new Date(), role: Role.PATIENT, patient: { create: { fullName: fullName.trim() } }, notificationPreference: { create: {} } }, include: { patient: true, doctor: true, memberships: { include: { clinic: true } } } });
       identity = await this.prisma.authIdentity.create({ data: { provider, providerId, userId: user.id }, include: { user: { include: { patient: true, doctor: true, memberships: { include: { clinic: true } } } } } });
     }
+    if (!identity.user.emailVerifiedAt) throw new UnauthorizedException('Verify your email before using social sign-in.');
     return this.buildLoginResponse(identity.user);
   }
 
