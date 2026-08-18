@@ -19,16 +19,17 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const email = dto.email.trim().toLowerCase();
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) throw new ConflictException('Email already exists');
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const hashedPassword = await bcrypt.hash(dto.password, 12);
     const user = await this.prisma.user.create({
       data: {
-        email: dto.email,
+        email,
         password: hashedPassword,
         role: Role.PATIENT,
         patient: { create: {
-          fullName: dto.fullName,
+          fullName: dto.fullName.trim(),
           phone: dto.phone,
           gender: dto.gender,
           birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
@@ -41,20 +42,21 @@ export class AuthService {
   }
 
   async registerDoctor(dto: RegisterDoctorDto) {
-    const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const email = dto.email.trim().toLowerCase();
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) throw new ConflictException('Email already exists');
     const baseSlug = this.toSlug(dto.clinicSlug || dto.clinicName);
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const hashedPassword = await bcrypt.hash(dto.password, 12);
 
     return this.prisma.$transaction(async (tx) => {
       const slug = await this.uniqueClinicSlug(tx, baseSlug);
-      const clinic = await tx.clinic.create({ data: { name: dto.clinicName, slug, phone: dto.clinicPhone, address: dto.clinicAddress } });
+      const clinic = await tx.clinic.create({ data: { name: dto.clinicName.trim(), slug, phone: dto.clinicPhone?.trim(), address: dto.clinicAddress?.trim() } });
       const user = await tx.user.create({
         data: {
-          email: dto.email,
+          email,
           password: hashedPassword,
           role: Role.DOCTOR,
-          doctor: { create: { fullName: dto.fullName, specialty: dto.specialty, price: dto.price, clinicId: clinic.id } },
+          doctor: { create: { fullName: dto.fullName.trim(), specialty: dto.specialty.trim(), price: dto.price, clinicId: clinic.id } },
         },
         include: { doctor: true },
       });
@@ -70,19 +72,21 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email },
       include: { patient: true, doctor: true, memberships: { include: { clinic: true } } },
     });
     if (!user || !(await bcrypt.compare(dto.password, user.password))) throw new UnauthorizedException('Invalid credentials');
-    const firstMembership = user.memberships[0];
+    const activeMemberships = user.memberships.filter((membership) => membership.clinic.isActive);
+    const firstMembership = activeMemberships[0];
     const access_token = this.signClinicToken(user.id, user.email, firstMembership?.clinicId, firstMembership?.role, user.role);
     const fullName = user.patient?.fullName ?? user.doctor?.fullName ?? null;
     return {
       access_token,
       user: { id: user.id, email: user.email, role: user.role, fullName },
       clinic: firstMembership ? { id: firstMembership.clinic.id, name: firstMembership.clinic.name, slug: firstMembership.clinic.slug, role: firstMembership.role } : null,
-      clinics: user.memberships.map((m) => ({ id: m.clinic.id, name: m.clinic.name, slug: m.clinic.slug, role: m.role })),
+      clinics: activeMemberships.map((m) => ({ id: m.clinic.id, name: m.clinic.name, slug: m.clinic.slug, role: m.role })),
     };
   }
 

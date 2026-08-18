@@ -9,14 +9,24 @@ async function bootstrap() {
   });
 
   const isProduction = process.env.NODE_ENV === 'production';
-  const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
+  const configuredOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+  if (isProduction && configuredOrigins.length === 0) {
+    throw new Error('CORS_ORIGINS must be configured in production');
+  }
+
+  const allowedOrigins = configuredOrigins.length > 0
+    ? configuredOrigins
+    : ['http://localhost:5173'];
+
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   app.enableShutdownHooks();
@@ -43,6 +53,10 @@ async function bootstrap() {
   }
 
   const port = Number(process.env.PORT || 3000);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('PORT must be a valid TCP port');
+  }
+
   await app.listen(port, '0.0.0.0');
 }
 
