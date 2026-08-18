@@ -21,9 +21,10 @@ import { ModerationModule } from './common/profanity/moderation/moderation.modul
 import { MedicalAttachmentsModule } from './medical-attachments/medical-attachments.module';
 import { AccessControlModule } from './common/profanity/access-control/access-control.module';
 import { PaymentsModule } from './payments/payments.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
-  imports: [AuthModule, UsersModule, DoctorsModule, AppointmentsModule, AdminModule, DashboardModule, MedicalRecordsModule, PatientsModule, PrescriptionsModule, MedicalRecordTemplatesModule, ReviewsModule, ProfanityModule, ModerationModule, MedicalAttachmentsModule, AccessControlModule, PaymentsModule],
+  imports: [AuthModule, UsersModule, DoctorsModule, AppointmentsModule, AdminModule, DashboardModule, MedicalRecordsModule, PatientsModule, PrescriptionsModule, MedicalRecordTemplatesModule, ReviewsModule, ProfanityModule, ModerationModule, MedicalAttachmentsModule, AccessControlModule, PaymentsModule, NotificationsModule],
   controllers: [AppController],
   providers: [
     { provide: APP_GUARD, useClass: GlobalAuthGuard },
