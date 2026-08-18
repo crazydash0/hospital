@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, Query, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { AuthProvider } from '@prisma/client';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from './public.decorator';
 import { LoginDto } from './dto/login.dto';
