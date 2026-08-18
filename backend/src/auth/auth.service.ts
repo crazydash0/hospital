@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes, randomInt } from 'crypto';
@@ -19,14 +24,7 @@ export class AuthService {
     if (dto.phone) await this.ensurePhoneAvailable(dto.phone);
     const hashedPassword = await bcrypt.hash(dto.password, 12);
     const user = await this.prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        phone: dto.phone?.trim(),
-        role: Role.PATIENT,
-        patient: { create: { fullName: dto.fullName.trim(), phone: dto.phone?.trim(), gender: dto.gender, birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined, address: dto.address } },
-        notificationPreference: { create: {} },
-      },
+      data: { email, password: hashedPassword, phone: dto.phone?.trim(), role: Role.PATIENT, patient: { create: { fullName: dto.fullName.trim(), phone: dto.phone?.trim(), gender: dto.gender, birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined, address: dto.address } }, notificationPreference: { create: {} } },
       include: { patient: true },
     });
     await this.issueVerificationCode(user.id, email, VerificationType.EMAIL);
@@ -50,8 +48,7 @@ export class AuthService {
   }
 
   async verifyEmail(email: string, code: string) {
-    const normalized = email.trim().toLowerCase();
-    const user = await this.verifyCode(normalized, code, VerificationType.EMAIL);
+    const user = await this.verifyCode(email.trim().toLowerCase(), code, VerificationType.EMAIL);
     await this.prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
     return { message: 'Email verified successfully' };
   }
@@ -67,9 +64,7 @@ export class AuthService {
   async requestPhoneVerification(phone: string) {
     const normalized = this.normalizePhone(phone);
     let user = await this.prisma.user.findUnique({ where: { phone: normalized } });
-    if (!user) {
-      user = await this.prisma.user.create({ data: { phone: normalized, role: Role.PATIENT, patient: { create: { fullName: 'New Patient', phone: normalized } }, notificationPreference: { create: {} } } });
-    }
+    if (!user) user = await this.prisma.user.create({ data: { phone: normalized, role: Role.PATIENT, patient: { create: { fullName: 'New Patient', phone: normalized } }, notificationPreference: { create: {} } } });
     if (user.phoneVerifiedAt) return { message: 'Phone is already verified' };
     await this.issueVerificationCode(user.id, normalized, VerificationType.PHONE);
     return { message: 'Verification code sent to your phone' };
@@ -124,6 +119,8 @@ export class AuthService {
   }
 
   private async issueVerificationCode(userId: number, target: string, type: VerificationType, client: any = this.prisma) {
+    const latest = await client.verificationCode.findFirst({ where: { target, type }, orderBy: { createdAt: 'desc' } });
+    if (latest && Date.now() - latest.createdAt.getTime() < 60_000) throw new BadRequestException('Please wait before requesting another verification code');
     const code = randomInt(100000, 1000000).toString();
     const codeHash = createHash('sha256').update(code).digest('hex');
     await client.verificationCode.deleteMany({ where: { target, type, consumedAt: null } });
@@ -182,19 +179,7 @@ export class AuthService {
     if (!response.ok) throw new BadRequestException('Unable to send verification SMS');
   }
 
-  private signClinicToken(userId: number, email?: string, clinicId?: number, clinicRole?: ClinicRole, role?: Role) {
-    return this.jwtService.sign({ userId, email, role, clinicId, clinicRole });
-  }
-
-  private toSlug(value: string): string {
-    const slug = value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    return slug || `clinic-${Date.now()}`;
-  }
-
-  private async uniqueClinicSlug(tx: any, baseSlug: string): Promise<string> {
-    let slug = baseSlug;
-    let counter = 2;
-    while (await tx.clinic.findUnique({ where: { slug } })) slug = `${baseSlug}-${counter++}`;
-    return slug;
-  }
+  private signClinicToken(userId: number, email?: string, clinicId?: number, clinicRole?: ClinicRole, role?: Role) { return this.jwtService.sign({ userId, email, role, clinicId, clinicRole }); }
+  private toSlug(value: string): string { const slug = value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); return slug || `clinic-${Date.now()}`; }
+  private async uniqueClinicSlug(tx: any, baseSlug: string): Promise<string> { let slug = baseSlug; let counter = 2; while (await tx.clinic.findUnique({ where: { slug } })) slug = `${baseSlug}-${counter++}`; return slug; }
 }
