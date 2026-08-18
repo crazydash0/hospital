@@ -17,22 +17,22 @@ model User {
   role     Role   @default(PATIENT)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  doctor       Doctor?
-  patient      Patient?
-  memberships  ClinicMembership[]
-  attachments  MedicalAttachment[]
-  identities   AuthIdentity[]
+  doctor Doctor?
+  patient Patient?
+  memberships ClinicMembership[]
+  attachments MedicalAttachment[]
+  identities AuthIdentity[]
   verificationCodes VerificationCode[]
   notifications Notification[]
   notificationPreference NotificationPreference?
 }
 
 model AuthIdentity {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  provider   AuthProvider
+  id Int @id @default(autoincrement())
+  userId Int
+  provider AuthProvider
   providerId String
-  createdAt  DateTime @default(now())
+  createdAt DateTime @default(now())
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([provider, providerId])
   @@unique([userId, provider])
@@ -40,13 +40,13 @@ model AuthIdentity {
 }
 
 model VerificationCode {
-  id        Int      @id @default(autoincrement())
-  userId    Int?
-  target    String
-  type      VerificationType
-  codeHash  String
+  id Int @id @default(autoincrement())
+  userId Int?
+  target String
+  type VerificationType
+  codeHash String
   expiresAt DateTime
-  attempts  Int      @default(0)
+  attempts Int @default(0)
   consumedAt DateTime?
   createdAt DateTime @default(now())
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -54,120 +54,129 @@ model VerificationCode {
   @@index([userId, type])
 }
 
+model OAuthState {
+  id Int @id @default(autoincrement())
+  state String @unique
+  provider AuthProvider
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([expiresAt])
+}
+
 model Clinic {
-  id        Int      @id @default(autoincrement())
-  name      String
-  slug      String   @unique
-  logoUrl   String?
-  phone     String?
-  address  String?
-  timezone  String   @default("Africa/Cairo")
-  currency  String   @default("EGP")
-  isActive  Boolean  @default(true)
+  id Int @id @default(autoincrement())
+  name String
+  slug String @unique
+  logoUrl String?
+  phone String?
+  address String?
+  timezone String @default("Africa/Cairo")
+  currency String @default("EGP")
+  isActive Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  memberships     ClinicMembership[]
-  doctors         Doctor[]
-  patients        ClinicPatient[]
-  appointments    Appointment[]
-  slots           AppointmentSlot[]
-  medicalRecords  MedicalRecord[]
-  templates       MedicalRecordTemplate[]
-  reviews         Review[]
-  attachments     MedicalAttachment[]
+  memberships ClinicMembership[]
+  doctors Doctor[]
+  patients ClinicPatient[]
+  appointments Appointment[]
+  slots AppointmentSlot[]
+  medicalRecords MedicalRecord[]
+  templates MedicalRecordTemplate[]
+  reviews Review[]
+  attachments MedicalAttachment[]
   weeklySchedules WeeklyScheduleTemplate[]
-  leaves          DoctorLeave[]
-  payments        Payment[]
+  leaves DoctorLeave[]
+  payments Payment[]
   @@index([isActive])
 }
 
 model ClinicMembership {
-  id        Int       @id @default(autoincrement())
-  clinicId  Int
-  userId    Int
-  role      ClinicRole
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id Int @id @default(autoincrement())
+  clinicId Int
+  userId Int
+  role ClinicRole
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([clinicId, userId])
   @@index([userId])
   @@index([clinicId, role])
 }
 
 model ClinicPatient {
-  id        Int      @id @default(autoincrement())
-  clinicId  Int
+  id Int @id @default(autoincrement())
+  clinicId Int
   patientId Int
-  notes     String?
-  createdAt DateTime  @default(now())
+  notes String?
+  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
   @@unique([clinicId, patientId])
   @@index([patientId])
 }
 
 model Doctor {
-  id             Int                     @id @default(autoincrement())
-  userId         Int                     @unique
-  clinicId       Int
-  fullName       String
-  specialty      String
-  price          Float
-  bio            String?
-  photoUrl       String?
-  facebookUrl    String?
-  instagramUrl   String?
-  whatsappUrl    String?
-  linkedinUrl    String?
-  websiteUrl     String?
-  appointments   Appointment[]
-  slots          AppointmentSlot[]
-  user           User                    @relation(fields: [userId], references: [id])
-  clinic         Clinic                  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  id Int @id @default(autoincrement())
+  userId Int @unique
+  clinicId Int
+  fullName String
+  specialty String
+  price Float
+  bio String?
+  photoUrl String?
+  facebookUrl String?
+  instagramUrl String?
+  whatsappUrl String?
+  linkedinUrl String?
+  websiteUrl String?
+  appointments Appointment[]
+  slots AppointmentSlot[]
+  user User @relation(fields: [userId], references: [id])
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   medicalRecords MedicalRecord[]
-  templates      MedicalRecordTemplate[]
-  reviews        Review[]
+  templates MedicalRecordTemplate[]
+  reviews Review[]
   weeklyTemplates WeeklyScheduleTemplate[]
-  leaves          DoctorLeave[]
+  leaves DoctorLeave[]
   @@index([clinicId])
 }
 
 model Patient {
-  id             Int             @id @default(autoincrement())
-  userId         Int             @unique
-  address        String?
-  birthDate      DateTime?
-  fullName       String
-  gender         Gender?
-  phone          String?
-  appointments   Appointment[]
+  id Int @id @default(autoincrement())
+  userId Int @unique
+  address String?
+  birthDate DateTime?
+  fullName String
+  gender Gender?
+  phone String?
+  appointments Appointment[]
   medicalRecords MedicalRecord[]
-  user           User            @relation(fields: [userId], references: [id])
-  reviews        Review[]
-  clinics        ClinicPatient[]
+  user User @relation(fields: [userId], references: [id])
+  reviews Review[]
+  clinics ClinicPatient[]
 }
 
 model Appointment {
-  id            Int                 @id @default(autoincrement())
-  clinicId      Int
-  doctorId      Int
-  patientId     Int
-  date          DateTime
-  createdAt     DateTime            @default(now())
-  status        AppointmentStatus   @default(PENDING)
-  slotId        Int                 @unique
-  meetingLink   String?
-  clinic        Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  doctor        Doctor              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  patient       Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  slot          AppointmentSlot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
-  attachments   MedicalAttachment[]
+  id Int @id @default(autoincrement())
+  clinicId Int
+  doctorId Int
+  patientId Int
+  date DateTime
+  createdAt DateTime @default(now())
+  status AppointmentStatus @default(PENDING)
+  slotId Int @unique
+  meetingLink String?
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  slot AppointmentSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  attachments MedicalAttachment[]
   medicalRecord MedicalRecord?
-  review        Review?
-  payments      Payment[]
-  reminder      AppointmentReminder?
+  review Review?
+  payments Payment[]
+  reminder AppointmentReminder?
   @@index([clinicId])
   @@index([doctorId])
   @@index([patientId])
@@ -175,68 +184,68 @@ model Appointment {
 }
 
 model AppointmentSlot {
-  id          Int          @id @default(autoincrement())
-  clinicId    Int
-  doctorId    Int
-  startTime   DateTime
-  endTime     DateTime
-  isBooked    Boolean      @default(false)
+  id Int @id @default(autoincrement())
+  clinicId Int
+  doctorId Int
+  startTime DateTime
+  endTime DateTime
+  isBooked Boolean @default(false)
   appointment Appointment?
-  clinic      Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  doctor      Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   @@index([clinicId, startTime])
   @@index([doctorId, startTime])
 }
 
 model MedicalRecord {
-  id                     Int      @id @default(autoincrement())
-  clinicId               Int
-  patientId              Int
-  doctorId               Int
-  appointmentId          Int      @unique
-  diagnosis              String
-  notes                  String?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  id Int @id @default(autoincrement())
+  clinicId Int
+  patientId Int
+  doctorId Int
+  appointmentId Int @unique
+  diagnosis String
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   additionalInstructions String?
-  clinic        Clinic                 @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  attachments   MedicalAttachment[]
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  attachments MedicalAttachment[]
   prescriptions Prescription[]
-  appointment   Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  doctor        Doctor                 @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  patient       Patient                @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
   @@index([clinicId])
   @@index([patientId])
   @@index([doctorId])
 }
 
 model Prescription {
-  id              Int           @id @default(autoincrement())
+  id Int @id @default(autoincrement())
   medicalRecordId Int
-  medicineName    String
-  dosage          String
-  frequency       String
-  duration        String
-  instructions    String?
-  createdAt       DateTime      @default(now())
-  medicalRecord   MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
+  medicineName String
+  dosage String
+  frequency String
+  duration String
+  instructions String?
+  createdAt DateTime @default(now())
+  medicalRecord MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
   @@index([medicalRecordId])
 }
 
 model MedicalRecordTemplate {
-  id          Int                         @id @default(autoincrement())
-  clinicId    Int?
-  name        String
+  id Int @id @default(autoincrement())
+  clinicId Int?
+  name String
   description String?
-  specialty   String?
-  visibility  TemplateVisibility          @default(PRIVATE)
-  isSystem    Boolean                     @default(false)
-  doctorId    Int?
-  createdAt   DateTime                    @default(now())
-  updatedAt   DateTime                    @updatedAt
-  clinic      Clinic?                     @relation(fields: [clinicId], references: [id], onDelete: SetNull)
-  doctor      Doctor?                     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  items       MedicalRecordTemplateItem[]
+  specialty String?
+  visibility TemplateVisibility @default(PRIVATE)
+  isSystem Boolean @default(false)
+  doctorId Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  doctor Doctor? @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  items MedicalRecordTemplateItem[]
   @@index([clinicId])
   @@index([doctorId])
   @@index([visibility])
@@ -244,38 +253,38 @@ model MedicalRecordTemplate {
 }
 
 model MedicalRecordTemplateItem {
-  id           Int                   @id @default(autoincrement())
-  templateId   Int
-  label        String
-  key          String
-  type         FieldType
-  required     Boolean               @default(false)
-  unit         String?
-  placeholder  String?
-  options      Json?
+  id Int @id @default(autoincrement())
+  templateId Int
+  label String
+  key String
+  type FieldType
+  required Boolean @default(false)
+  unit String?
+  placeholder String?
+  options Json?
   displayOrder Int
-  template     MedicalRecordTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  template MedicalRecordTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   @@index([templateId])
 }
 
 model Review {
-  id            Int         @id @default(autoincrement())
-  clinicId      Int
-  appointmentId Int         @unique
-  doctorId      Int
-  patientId     Int
-  rating        Int
-  comment       String
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  doctorReply   String?
-  isAnonymous   Boolean     @default(false)
-  isHidden      Boolean     @default(false)
-  repliedAt     DateTime?
-  clinic        Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  doctor        Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  patient       Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  id Int @id @default(autoincrement())
+  clinicId Int
+  appointmentId Int @unique
+  doctorId Int
+  patientId Int
+  rating Int
+  comment String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  doctorReply String?
+  isAnonymous Boolean @default(false)
+  isHidden Boolean @default(false)
+  repliedAt DateTime?
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
   @@index([clinicId])
   @@index([doctorId])
   @@index([patientId])
@@ -283,25 +292,25 @@ model Review {
 
 model MedicalAttachment {
   id Int @id @default(autoincrement())
-  clinicId        Int
-  appointmentId   Int
+  clinicId Int
+  appointmentId Int
   medicalRecordId Int?
-  uploadedById    Int
-  type       AttachmentType
+  uploadedById Int
+  type AttachmentType
   uploadedBy UploadedBy
   fileName String
   publicId String
-  fileUrl  String
+  fileUrl String
   mimeType String
-  size     Int
-  notes    String?
-  isDeleted Boolean   @default(false)
+  size Int
+  notes String?
+  isDeleted Boolean @default(false)
   deletedAt DateTime?
   createdAt DateTime @default(now())
-  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  appointment    Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   medicalRecord MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
-  uploader      User           @relation(fields: [uploadedById], references: [id])
+  uploader User @relation(fields: [uploadedById], references: [id])
   @@index([clinicId])
   @@index([appointmentId])
   @@index([medicalRecordId])
@@ -310,93 +319,172 @@ model MedicalAttachment {
 }
 
 model WeeklyScheduleTemplate {
-  id        Int    @id @default(autoincrement())
-  clinicId  Int
-  doctorId  Int
+  id Int @id @default(autoincrement())
+  clinicId Int
+  doctorId Int
   dayOfWeek Int
   startHour Int
-  endHour   Int
-  duration  Int    @default(30)
-  note      String?
+  endHour Int
+  duration Int @default(30)
+  note String?
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  doctor Doctor  @relation(fields: [doctorId], references: [id])
+  doctor Doctor @relation(fields: [doctorId], references: [id])
   @@unique([doctorId, dayOfWeek])
   @@index([clinicId])
 }
 
 model DoctorLeave {
-  id       Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
   clinicId Int
   doctorId Int
-  date     DateTime
+  date DateTime
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  doctor Doctor  @relation(fields: [doctorId], references: [id])
+  doctor Doctor @relation(fields: [doctorId], references: [id])
   @@unique([doctorId, date])
   @@index([clinicId])
 }
 
 model Payment {
-  id            Int           @id @default(autoincrement())
-  clinicId      Int
+  id Int @id @default(autoincrement())
+  clinicId Int
   appointmentId Int
-  amount        Float
-  status        PaymentStatus @default(PAID)
-  method        PaymentMethod @default(CASH)
-  reference     String?
-  paidAt        DateTime      @default(now())
-  createdAt     DateTime      @default(now())
-  clinic      Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  amount Float
+  status PaymentStatus @default(PAID)
+  method PaymentMethod @default(CASH)
+  reference String?
+  paidAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   @@index([clinicId, paidAt])
   @@index([appointmentId])
 }
 
 model Notification {
-  id          Int              @id @default(autoincrement())
-  userId      Int
-  type        NotificationType
-  channel     NotificationChannel
-  title       String
-  body        String
+  id Int @id @default(autoincrement())
+  userId Int
+  type NotificationType
+  channel NotificationChannel
+  title String
+  body String
   appointmentId Int?
-  sentAt      DateTime?
-  readAt      DateTime?
-  createdAt   DateTime         @default(now())
+  sentAt DateTime?
+  readAt DateTime?
+  createdAt DateTime @default(now())
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@index([userId, createdAt])
   @@index([appointmentId, type, channel])
 }
 
 model NotificationPreference {
-  id       Int     @id @default(autoincrement())
-  userId   Int     @unique
-  email    Boolean @default(true)
-  sms      Boolean @default(true)
-  inApp    Boolean @default(true)
+  id Int @id @default(autoincrement())
+  userId Int @unique
+  email Boolean @default(true)
+  sms Boolean @default(true)
+  inApp Boolean @default(true)
   reminders Boolean @default(true)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AppointmentReminder {
-  id            Int      @id @default(autoincrement())
-  appointmentId Int      @unique
-  scheduledFor  DateTime
-  processedAt   DateTime?
+  id Int @id @default(autoincrement())
+  appointmentId Int @unique
+  scheduledFor DateTime
+  processedAt DateTime?
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   @@index([scheduledFor, processedAt])
 }
 
-enum Role { DOCTOR PATIENT ADMIN }
-enum ClinicRole { OWNER DOCTOR RECEPTIONIST STAFF }
-enum Gender { MALE FEMALE }
-enum AppointmentStatus { PENDING CONFIRMED CANCELLED COMPLETED NO_SHOW }
-enum PaymentStatus { PAID REFUNDED VOID }
-enum PaymentMethod { CASH CARD ONLINE }
-enum TemplateVisibility { PRIVATE PUBLIC }
-enum FieldType { TEXT TEXTAREA NUMBER DATE CHECKBOX SELECT VITAL }
-enum AttachmentType { PRESCRIPTION LAB_RESULT XRAY MRI CT_SCAN ULTRASOUND REPORT OTHER }
-enum UploadedBy { DOCTOR PATIENT }
-enum AuthProvider { GOOGLE FACEBOOK }
-enum VerificationType { EMAIL PHONE }
-enum NotificationType { APPOINTMENT_BOOKED APPOINTMENT_CONFIRMED APPOINTMENT_CANCELLED APPOINTMENT_RESCHEDULED APPOINTMENT_REMINDER PASSWORD_RESET }
-enum NotificationChannel { EMAIL SMS IN_APP }
+enum Role {
+  DOCTOR
+  PATIENT
+  ADMIN
+}
+
+enum ClinicRole {
+  OWNER
+  DOCTOR
+  RECEPTIONIST
+  STAFF
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PAID
+  REFUNDED
+  VOID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  ONLINE
+}
+
+enum TemplateVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum FieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  DATE
+  CHECKBOX
+  SELECT
+  VITAL
+}
+
+enum AttachmentType {
+  PRESCRIPTION
+  LAB_RESULT
+  XRAY
+  MRI
+  CT_SCAN
+  ULTRASOUND
+  REPORT
+  OTHER
+}
+
+enum UploadedBy {
+  DOCTOR
+  PATIENT
+}
+
+enum AuthProvider {
+  GOOGLE
+  FACEBOOK
+}
+
+enum VerificationType {
+  EMAIL
+  PHONE
+}
+
+enum NotificationType {
+  APPOINTMENT_BOOKED
+  APPOINTMENT_CONFIRMED
+  APPOINTMENT_CANCELLED
+  APPOINTMENT_RESCHEDULED
+  APPOINTMENT_REMINDER
+  PASSWORD_RESET
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+}
