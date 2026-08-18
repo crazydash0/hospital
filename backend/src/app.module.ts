@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { DoctorsModule } from './doctors/doctors.module';
@@ -21,36 +20,16 @@ import { ProfanityModule } from './common/profanity/profanity.module';
 import { ModerationModule } from './common/profanity/moderation/moderation.module';
 import { MedicalAttachmentsModule } from './medical-attachments/medical-attachments.module';
 import { AccessControlModule } from './common/profanity/access-control/access-control.module';
+import { PaymentsModule } from './payments/payments.module';
+
 @Module({
-  imports: [
-    AuthModule,
-    UsersModule,
-    DoctorsModule,
-    AppointmentsModule,
-    AdminModule,
-    DashboardModule,
-    MedicalRecordsModule,
-    PatientsModule,
-    PrescriptionsModule,
-    MedicalRecordTemplatesModule,
-    ReviewsModule,
-    ProfanityModule,
-    ModerationModule,
-    MedicalAttachmentsModule,
-    AccessControlModule,
+  imports: [AuthModule, UsersModule, DoctorsModule, AppointmentsModule, AdminModule, DashboardModule, MedicalRecordsModule, PatientsModule, PrescriptionsModule, MedicalRecordTemplatesModule, ReviewsModule, ProfanityModule, ModerationModule, MedicalAttachmentsModule, AccessControlModule, PaymentsModule],
+  controllers: [AppController],
+  providers: [
+    { provide: APP_GUARD, useClass: GlobalAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+    ProfanityService,
+    AppService,
   ],
-controllers: [AppController],
-providers: [
-  {
-    provide: APP_GUARD,
-    useClass: GlobalAuthGuard,
-  },
-  {
-    provide: APP_GUARD,
-    useClass: RolesGuard,
-  },
-  ProfanityService,
-  AppService,
-],
 })
 export class AppModule {}
