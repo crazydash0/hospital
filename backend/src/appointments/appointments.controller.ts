@@ -1,8 +1,9 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, Req, ParseIntPipe } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AppointmentsService } from './appointments.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Roles } from '../auth/roles.decorator';
-import { Role } from '@prisma/client';
+import { NotificationType, Role } from '@prisma/client';
 import { BookAppointmentDto } from '../auth/dto/book-appointment.dto';
 import { CreateSlotsDto } from '../auth/dto/create-slots.dto';
 import { SetWeeklyTemplateDto, SetWeeklyRangeDto } from '../auth/dto/weekly-template.dto';
@@ -14,11 +15,18 @@ import { Public } from '../auth/public.decorator';
 @ApiBearerAuth()
 @Controller('appointments')
 export class AppointmentsController {
-  constructor(private readonly service: AppointmentsService) {}
+  constructor(
+    private readonly service: AppointmentsService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   @Roles(Role.PATIENT)
   @Post()
-  book(@Req() req, @Body() body: BookAppointmentDto) { return this.service.bookAppointment(req.user.userId, body.slotId, req.user); }
+  async book(@Req() req, @Body() body: BookAppointmentDto) {
+    const appointment = await this.service.bookAppointment(req.user.userId, body.slotId, req.user);
+    void this.notifications.notifyAppointmentEvent(appointment.id, NotificationType.APPOINTMENT_BOOKED).catch(() => undefined);
+    return appointment;
+  }
 
   @Roles(Role.DOCTOR)
   @Get('doctor')
@@ -30,7 +38,11 @@ export class AppointmentsController {
 
   @Roles(Role.DOCTOR)
   @Patch(':id/confirm')
-  confirmAppointment(@Param('id', ParseIntPipe) id: number, @Req() req) { return this.service.confirmAppointment(id, req.user); }
+  async confirmAppointment(@Param('id', ParseIntPipe) id: number, @Req() req) {
+    const appointment = await this.service.confirmAppointment(id, req.user);
+    void this.notifications.notifyAppointmentEvent(id, NotificationType.APPOINTMENT_CONFIRMED).catch(() => undefined);
+    return appointment;
+  }
 
   @Roles(Role.DOCTOR)
   @Patch(':id/complete')
@@ -42,15 +54,27 @@ export class AppointmentsController {
 
   @Roles(Role.PATIENT)
   @Patch(':id/cancel')
-  cancel(@Param('id', ParseIntPipe) id: number, @Req() req) { return this.service.cancelAppointment(id, req.user); }
+  async cancel(@Param('id', ParseIntPipe) id: number, @Req() req) {
+    const appointment = await this.service.cancelAppointment(id, req.user);
+    void this.notifications.notifyAppointmentEvent(id, NotificationType.APPOINTMENT_CANCELLED).catch(() => undefined);
+    return appointment;
+  }
 
   @Roles(Role.PATIENT)
   @Patch(':id/reschedule')
-  reschedule(@Param('id', ParseIntPipe) id: number, @Req() req, @Body('slotId', ParseIntPipe) slotId: number) { return this.service.rescheduleAppointment(id, slotId, req.user); }
+  async reschedule(@Param('id', ParseIntPipe) id: number, @Req() req, @Body('slotId', ParseIntPipe) slotId: number) {
+    const appointment = await this.service.rescheduleAppointment(id, slotId, req.user);
+    void this.notifications.notifyAppointmentEvent(id, NotificationType.APPOINTMENT_RESCHEDULED).catch(() => undefined);
+    return appointment;
+  }
 
   @Roles(Role.DOCTOR)
   @Patch(':id/doctor-cancel')
-  cancelByDoctor(@Param('id', ParseIntPipe) id: number, @Req() req) { return this.service.cancelAppointmentByDoctor(id, req.user); }
+  async cancelByDoctor(@Param('id', ParseIntPipe) id: number, @Req() req) {
+    const appointment = await this.service.cancelAppointmentByDoctor(id, req.user);
+    void this.notifications.notifyAppointmentEvent(id, NotificationType.APPOINTMENT_CANCELLED).catch(() => undefined);
+    return appointment;
+  }
 
   @Roles(Role.DOCTOR)
   @Patch(':id/meeting-link')
