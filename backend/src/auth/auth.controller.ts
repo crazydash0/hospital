@@ -54,7 +54,7 @@ export class AuthController {
       const profileResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { Authorization: `Bearer ${tokens.access_token}` } });
       if (!profileResponse.ok) throw new UnauthorizedException('Unable to read Google profile');
       const profile = await profileResponse.json() as { sub: string; email?: string; name?: string; email_verified?: boolean };
-      if (!profile.email || profile.email_verified === false) throw new UnauthorizedException('Google account has no verified email');
+      if (!profile.email || profile.email_verified !== true) throw new UnauthorizedException('Google account must have a verified email');
       result = await this.authService.loginWithOAuth(provider, profile.sub, profile.email, profile.name ?? 'Patient');
     } else {
       const tokenResponse = await fetch('https://graph.facebook.com/v20.0/oauth/access_token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: process.env.FACEBOOK_APP_ID!, client_secret: process.env.FACEBOOK_APP_SECRET!, redirect_uri: process.env.FACEBOOK_REDIRECT_URI!, code }) });
@@ -63,7 +63,8 @@ export class AuthController {
       const profileResponse = await fetch(`https://graph.facebook.com/me?fields=id,name,email&access_token=${encodeURIComponent(tokens.access_token)}`);
       if (!profileResponse.ok) throw new UnauthorizedException('Unable to read Facebook profile');
       const profile = await profileResponse.json() as { id: string; name?: string; email?: string };
-      result = await this.authService.loginWithOAuth(provider, profile.id, profile.email ?? null, profile.name ?? 'Patient');
+      if (!profile.email) throw new UnauthorizedException('Facebook account must provide an email address');
+      result = await this.authService.loginWithOAuth(provider, profile.id, profile.email, profile.name ?? 'Patient');
     }
     const frontend = process.env.FRONTEND_URL;
     if (!frontend) return res.json(result);
